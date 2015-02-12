@@ -2,7 +2,8 @@
 /.idea
 
 # Compiled files
-*.pyc
+__pycache__/
+*.py[cod]
 
 # Backup files
 *~
@@ -13,5 +14,6 @@
 *.nc4
 *_wrfout_d[0-9][0-9]_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*
 wrfout_d[0-9][0-9]_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*
-/jobs
-/plots
+
+# default output files
+/Wiski/map.png
