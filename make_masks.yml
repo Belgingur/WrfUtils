@@ -1,12 +1,27 @@
 geofile: 'geo_em.d02.nc'
-sub_sampling: 3
+sub_sampling: 5
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
-shape_files: [
-    'Shapefiles/Bla_isn93.shp',
-    'Shapefiles/THJ_KVI.shp',
-    'Shapefiles/Fljotsdalsstod_vatnasvid.shp',
-    'Shapefiles/Thj_Sul_Bud.shp',
-    'Shapefiles/THJ_HAG.shp',
-    'Shapefiles/TU_SIG.shp'
-]
+shape_files:
+    'Shapefiles/Bla_isn93.shp':
+     - 'blondulon'
+    'Shapefiles/THJ_KVI.shp':
+     - 'kvislarveita'
+    'Shapefiles/Fljotsdalsstod_vatnasvid.shp':
+    - 'ufsarlon'
+    - 'halslon'
+    - 'hraunaveita'
+    - 'hraunaveita'
+    - 'hraunaveita'
+    - 'hraunaveita'
+    'Shapefiles/Thj_Sul_Bud.shp':
+     - 'sultartangi'
+     - 'budarhals'
+    'Shapefiles/THJ_HAG.shp':
+    - 'hagongulon'
+    'Shapefiles/TU_SIG.shp':
+    - 'tungnaa'
+    - 'thorisvatn'
+    - 'veitekki'
+
+output: 'weigths.yml'

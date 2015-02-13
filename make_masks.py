@@ -34,7 +34,7 @@ def read_config():
     )
     parser.add_argument('--config', default='make_masks.yml',
                         help='Read configuration from this file (def: make_masks.yml)')
-    parser.add_argument('--plot', type=str, default='map.png',
+    parser.add_argument('--plot', type=str, default=None,
                         help='Plot the generated masks to this file (def: map.png)')
     args = parser.parse_args()
 
@@ -74,7 +74,6 @@ def sub_sample_grid(xlon, xlat, subres):
     print('Create %s*%s sub-sampling points in each of %s*%s cells' %
           (subres, subres, xlon.shape[0], xlon.shape[1]))
     i_lim, j_lim = xlon.shape
-    sub_lim = subres // 2
     sub_points = []
     for i in range(0, i_lim):
         for j in range(0, j_lim):
@@ -85,14 +84,23 @@ def sub_sample_grid(xlon, xlat, subres):
             j_b, j_a = max(j - 1, 0), min(j + 1, j_lim - 1)
             d_lon = (xlon[i, j_a] - xlon[i, j_b]) / subres / (j_a - j_b)
             d_lat = (xlat[i_a, j] - xlat[i_b, j]) / subres / (i_a - i_b)
+            # print('% 3.0f % 3.0f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
+            # (i, j, lat0, lon0, d_lat, d_lon))
+
+            # Make an array of subres*subres evensly spaced points inside cell
             points = []
             sub_points.append(points)
-            for sub_i in range(-sub_lim, sub_lim + 1):
+            for sub_i in range(subres):
+                sub_i -= (subres - 1) / 2
                 lon = lon0 + sub_i * d_lon
-                for sub_j in range(-sub_lim, sub_lim + 1):
+                # print(end='\t')
+                for sub_j in range(subres):
+                    sub_j -= (subres - 1) / 2
                     lat = lat0 + sub_j * d_lat
+                    # print('% 2.4f % 2.4f' % (lat, lon), end='\t')
                     point = shapely.geometry.Point(lon, lat)
                     points.append(point)
+                    # print()
     return sub_points
 
 
@@ -153,24 +161,38 @@ def coord_transform(from_sr_id, to_sr_id):
     return tx
 
 
-def plot_data(m, plot_file, results, x, y, xhgt, levels=9):
-    # Plot the map!
+def plain_name(shape_file):
+    return os.path.splitext(os.path.basename(shape_file))[0]
+
+
+def write_weights(out_name, results, levels, resolution):
+    print('Write', out_name)
+    data = dict(
+        levels=levels,
+        resolution=resolution
+    )
+    for shape_file, polygons, regions, weights in results:
+        name = plain_name(shape_file)
+        data[name] = [w.tolist() for w in weights]
+    data = yaml.dump(data)
+    with open(out_name, 'w') as out:
+        out.write(data)
+
+
+def plot_data(m, plot_file, results, x, y, xhgt, levels, resolution):
     print('Plot map')
     pre_plot(m, x, y, xhgt)
-    for (shape_file, polygons, weights), color in zip(results, cycle(COLORS)):
+    colors = cycle(COLORS)
+    for (shape_file, polygons, regions, weights) in results:
         print('Plot for', shape_file)
-        name = os.path.basename(shape_file)
-        name = os.path.splitext(name)[0]
-        for i, polygon, weight in zip(count(), polygons, weights):
-            print('  weight: %0.2f' % (numpy.sum(weight) / levels))
+        for i, polygon, region, weight, color in zip(count(), polygons, regions, weights, colors):
             x_p, y_p = m(polygon.exterior.xy[0], polygon.exterior.xy[1])
-            label = name if i == 0 else None
-            m.plot(x_p, y_p, color + '-', lw=2, label=label, alpha=0.5)
+            m.plot(x_p, y_p, color + '-', lw=2, label=region, alpha=0.5)
             for level in range(levels):
                 mask1 = weight <= level + 1
                 mask2 = weight > level
                 mask = mask1 & mask2
-                size = 2 * level / levels
+                size = 2.5 * level / levels
                 m.plot(x[mask], y[mask], color + 'o', ms=size, mec=color)
     pylab.legend(ncol=2, fontsize='x-small')
     post_plot(plot_file)
@@ -183,14 +205,17 @@ def main():
     tx = coord_transform(config['shape_spatial_reference'],
                          config['plot_spatial_reference'])
 
-    # Read input data
     print('Read', config['geofile'])
     with netCDF4.Dataset(config['geofile']) as dataset:
         xhgt = dataset.variables['HGT_M'][0]
         xlon = dataset.variables['XLONG_M'][0]
         xlat = dataset.variables['XLAT_M'][0]
+        resolution = [dataset.DX.item(), dataset.DY.item()]
 
-    # Set up map
+    subres = config['sub_sampling']
+    levels = subres ** 2
+    sub_points = sub_sample_grid(xlon, xlat, subres)
+
     print('Create map projection')
     m = Basemap(projection='stere', lat_ts=65., lat_0=65., lon_0=-19.,
                 llcrnrlon=-24.2, llcrnrlat=63.25,
@@ -199,19 +224,26 @@ def main():
     x, y = m(xlon, xlat)
 
     results = []
-    subres = config['sub_sampling']
-    sub_points = sub_sample_grid(xlon, xlat, subres)
-    for shape_file in config['shape_files']:
-        print('Read shape file', shape_file)
+    for shape_file, regions in config['shape_files'].items():
+        print('Read %s -> %s' % (shape_file, ', '.join(regions)))
         polygon_points = read_shapefile(shape_file, tx)
         polygon_shapes = [shapely.geometry.Polygon(polygon)
                           for polygon in polygon_points]
         weights = [points_in_polygon(shape, sub_points, xlon.shape)
                    for shape in polygon_shapes]
-        results.append((shape_file, polygon_shapes, weights))
+        if len(weights) != len(regions):
+            print('WARNING: %s regions do not correspond to %s read polygons',
+                  len(regions), len(weights))
+        for weight, region in zip(weights, regions):
+            area = numpy.sum(weight) / levels * resolution[0] * resolution[1]
+            print('  %s: %0.2f km²' % (region, area / 1000000))
+        results.append((shape_file, polygon_shapes, regions, weights))
 
     if plot_file:
-        plot_data(m, plot_file, results, x, y, xhgt, subres ** 2)
+        plot_data(m, plot_file, results, x, y, xhgt, levels, resolution)
+
+    write_weights(config['output'], results, levels, resolution)
 
 
-main()
+if __name__ == '__main__':
+    main()
