@@ -5,11 +5,14 @@
 Generates point-weight masks from a WRF-style geography file and shape files.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, \
+    unicode_literals
 
 # Python library imports
 import argparse
+from itertools import cycle, count
 import netCDF4
+import os
 import subprocess
 
 import numpy
@@ -20,6 +23,8 @@ import ogr
 import osr
 import sys
 import yaml
+
+COLORS = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
 
 
 def read_config():
@@ -54,34 +59,74 @@ def post_plot(plot_name):
     pylab.savefig(plot_name, dpi=300)
     pylab.clf()
     pylab.close()
-    id1 = subprocess.Popen(['gm', 'convert', '-trim', '+repage', plot_name, plot_name])
+    id1 = subprocess.Popen([
+        'gm', 'convert', '-trim', '+repage',
+        plot_name, plot_name
+    ])
     id1.wait()
 
 
-def points_area(poly, xlon, xlat):
-    print('Using shapely to find area to scale')
+def sub_sample_grid(xlon, xlat, subres):
+    """
+    Create an array in the shape of the flattened xlon or xlat, containing at
+    each position an array of subres*subres sub-sampling points for that cell.
+    """
+    print('Create %s*%s sub-sampling points in each of %s*%s cells' %
+          (subres, subres, xlon.shape[0], xlon.shape[1]))
+    i_lim, j_lim = xlon.shape
+    sub_lim = subres // 2
+    sub_points = []
+    for i in range(0, i_lim):
+        for j in range(0, j_lim):
+            # Find lat0,lon0 centre of grid cell i,j
+            # and d_lon, d_lat the sub-sampling steps
+            lon0, lat0 = xlon[i, j], xlat[i, j]
+            i_b, i_a = max(i - 1, 0), min(i + 1, i_lim - 1)
+            j_b, j_a = max(j - 1, 0), min(j + 1, j_lim - 1)
+            d_lon = (xlon[i, j_a] - xlon[i, j_b]) / subres / (j_a - j_b)
+            d_lat = (xlat[i_a, j] - xlat[i_b, j]) / subres / (i_a - i_b)
+            points = []
+            sub_points.append(points)
+            for sub_i in range(-sub_lim, sub_lim + 1):
+                lon = lon0 + sub_i * d_lon
+                for sub_j in range(-sub_lim, sub_lim + 1):
+                    lat = lat0 + sub_j * d_lat
+                    point = shapely.geometry.Point(lon, lat)
+                    points.append(point)
+    return sub_points
+
+
+def points_in_polygon(poly, sub_points_per_cell, shape):
+    """
+    Counts the number of sub-sampling points in each cell which fall within the
+    polygon.
+    """
     # Some would first transform data to e.g. km using e.g. lambert-projection
 
     # Step through elements in grid to evaluate if in the study area
-    grid_lons = xlon.flatten()
-    grid_lats = xlat.flatten()
-    mask = numpy.zeros_like(grid_lons, dtype='bool')
-    for i in range(len(grid_lons)):
-        grid_point = shapely.geometry.Point(grid_lons[i], grid_lats[i])
-        if grid_point.within(poly):
-            mask[i] = True
-
-    # Stand and deliver
-    return mask.reshape(xlon.shape)
+    weights = numpy.zeros(shape[0] * shape[1], dtype=int)
+    for i, sub_points in enumerate(sub_points_per_cell):
+        for point in sub_points:
+            if point.within(poly):
+                weights[i] += 1
+    weights = weights.reshape(shape)
+    return weights
 
 
 def read_shapefile(shpfile, tx):
+    """
+    Reads a shapefile and returns a list of polygons, each of which is a list of points.
+
+    :param shpfile:
+    :param tx:
+    :rtype: list of list of int
+    """
     # Now open the shapefile and start by reading the only layer and
     # the first feature, as well as its geometry.
     source = ogr.Open(shpfile)
     layer = source.GetLayer()
     counts = layer.GetFeatureCount()
-    points = []
+    polygons = []
     for c in range(counts):
         feature = layer.GetFeature(c)
         geometry = feature.GetGeometryRef()
@@ -91,10 +136,10 @@ def read_shapefile(shpfile, tx):
 
         # Read the polygon (there is just one) and the defining points.
         polygon = geometry.GetGeometryRef(0)
-        points.append(polygon.GetPoints())
+        polygons.append(polygon.GetPoints())
 
     # Stand and deliver
-    return points
+    return polygons
 
 
 def coord_transform(from_sr_id, to_sr_id):
@@ -108,9 +153,31 @@ def coord_transform(from_sr_id, to_sr_id):
     return tx
 
 
+def plot_data(m, plot_file, results, x, y, xhgt, levels=9):
+    # Plot the map!
+    print('Plot map')
+    pre_plot(m, x, y, xhgt)
+    for (shape_file, polygons, weights), color in zip(results, cycle(COLORS)):
+        print('Plot for', shape_file)
+        name = os.path.basename(shape_file)
+        name = os.path.splitext(name)[0]
+        for i, polygon, weight in zip(count(), polygons, weights):
+            print('  weight: %0.2f' % (numpy.sum(weight) / levels))
+            x_p, y_p = m(polygon.exterior.xy[0], polygon.exterior.xy[1])
+            label = name if i == 0 else None
+            m.plot(x_p, y_p, color + '-', lw=2, label=label, alpha=0.5)
+            for level in range(levels):
+                mask1 = weight <= level + 1
+                mask2 = weight > level
+                mask = mask1 & mask2
+                size = 2 * level / levels
+                m.plot(x[mask], y[mask], color + 'o', ms=size, mec=color)
+    pylab.legend(ncol=2, fontsize='x-small')
+    post_plot(plot_file)
+
+
 def main():
     config, plot_file = read_config()
-    colors = ['r', 'g', 'b', 'c', 'm', 'y']
 
     # Define the coordinate transformation needed for shapefiles
     tx = coord_transform(config['shape_spatial_reference'],
@@ -130,23 +197,21 @@ def main():
                 urcrnrlon=-13.1, urcrnrlat=66.5,
                 resolution='i' if plot_file else None)
     x, y = m(xlon, xlat)
-    
-    # Plot the map!
-    print('Plot map')
-    pre_plot(m, x, y, xhgt)
-    for shpfile, color in zip(config['shape_files'], colors):
-        print('Read shape file', shpfile)
-        points = read_shapefile(shpfile, tx)
-        print('Create polygon')
-        for p in points:
-            poly = shapely.geometry.Polygon(p)
-            print('Find grid points within polygon')
-            mask = points_area(poly, xlon, xlat)
-            m.plot(x[mask], y[mask], color + 'o', ms=2, mec=color)
-            x_p, y_p = m(poly.exterior.xy[0], poly.exterior.xy[1])
-            m.plot(x_p, y_p, color + '-', lw=2, label=shpfile[11:], alpha=0.5)
-    pylab.legend(ncol=2, fontsize='x-small')
-    post_plot(plot_file)
+
+    results = []
+    subres = config['sub_sampling']
+    sub_points = sub_sample_grid(xlon, xlat, subres)
+    for shape_file in config['shape_files']:
+        print('Read shape file', shape_file)
+        polygon_points = read_shapefile(shape_file, tx)
+        polygon_shapes = [shapely.geometry.Polygon(polygon)
+                          for polygon in polygon_points]
+        weights = [points_in_polygon(shape, sub_points, xlon.shape)
+                   for shape in polygon_shapes]
+        results.append((shape_file, polygon_shapes, weights))
+
+    if plot_file:
+        plot_data(m, plot_file, results, x, y, xhgt, subres ** 2)
 
 
 main()

@@ -15,7 +15,8 @@ function die
 
 # Test that external executables are present
 conda -V || die "Please install Anaconda or Miniconda from http://continuum.io/downloads into your PATH"
-gdalinfo > /dev/null || die "Please install gdal, maybe with: sudo apt-get install gdal-bin"
+test -x /usr/bin/gdalinfo || die "Please install gdal, maybe with: sudo apt-get install gdal-bin"
+test -x /usr/bin/gm || die "Please install graphicsmagic, maybe with: sudo apt-get install graphicsmagick"
 
 if [ `conda info --envs | grep -c "^$ENV "` == 0 ]
 then

@@ -1,4 +1,5 @@
 geofile: 'geo_em.d02.nc'
+sub_sampling: 3
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
 shape_files: [
