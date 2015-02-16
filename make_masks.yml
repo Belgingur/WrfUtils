@@ -22,6 +22,6 @@ shape_files:
     'Shapefiles/TU_SIG.shp':
     - 'tungnaa'
     - 'thorisvatn'
-    - 'veitekki'
+    - 'tungnaa'
 
 output: 'weigths.yml'
