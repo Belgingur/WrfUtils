@@ -27,6 +27,7 @@ conda install -n $ENV --yes \
   pip \
   numpy=1.9 \
   matplotlib=1.4 \
+  scipy=0.15 \
   basemap=1.0 \
   netcdf4=1.1 \
   shapely=1.5 \

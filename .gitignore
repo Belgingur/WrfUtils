@@ -4,7 +4,6 @@
 # Compiled files
 __pycache__/
 *.py[cod]
-<<<<<<< 8f0303a03308977c3f98e641db12ccbed6be4b55
 
 # Backup files
 *~
@@ -18,3 +17,4 @@ wrfout_d[0-9][0-9]_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*
 
 # default output files
 /Wiski/map*.png
+/Wiski/map*.svg

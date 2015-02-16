@@ -9,10 +9,11 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 # Python library imports
 import argparse
-from itertools import product
+from collections import defaultdict
+from itertools import chain, cycle, izip
 import netCDF4
 import os
-import subprocess
+from math import isnan, sqrt
 
 import numpy
 import pylab
@@ -26,6 +27,11 @@ import yaml
 
 # SETUP
 
+numpy.set_printoptions(precision=3, linewidth=125)
+
+NaN = float('NaN')
+
+
 def read_config():
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
@@ -34,7 +40,7 @@ def read_config():
     parser.add_argument('--config', default='make_masks.yml',
                         help='Read configuration from this file (def: make_masks.yml)')
     parser.add_argument('--plot', type=str, default=None,
-                        help='Plot the generated masks to this file (def: map.png)')
+                        help='Plot the generated masks to this file (def: None)')
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -42,42 +48,140 @@ def read_config():
         return config, args.plot
 
 
+def linear_interpolate(x0, n, d1, d2):
+    # print('linear_interpolate(', x0, n, d1, d2, ')')
+    d1 = d2 if isnan(d1) else d1
+    d2 = d1 if isnan(d2) else d2
+    lim = (n - 1) / 2
+    sub = -lim
+    x = x0 + sub * d1
+    # print(lim, sub, x)
+
+    while sub < -0.4:
+        # print('yield<0', sub, x)
+        yield x
+        sub += 1
+        x += d1
+
+    if -0.4 < sub < 0.4:
+        # print('yield=0', 0, x)
+        yield x0
+        sub = 1
+        x = x0 + d2
+
+    while sub <= lim:
+        # print('yield>0', sub, x)
+        yield x
+        sub += 1
+        x += d2
+    return
+
+
 def sub_sample_grid(xlon, xlat, subres):
     """
     Create an array in the shape of the flattened xlon or xlat, containing at
     each position an array of subres*subres sub-sampling points for that cell.
     """
-    print('Create %s*%s sub-sampling points in each of %s*%s cells' %
-          (subres, subres, xlon.shape[0], xlon.shape[1]))
+    # print('Create %s*%s sub-sampling points in each of %s*%s cells' %
+    # (subres, subres, xlon.shape[0], xlon.shape[1]))
     i_lim, j_lim = xlon.shape
     sub_points = []
     for i in range(0, i_lim):
         for j in range(0, j_lim):
             # Find lat0,lon0 centre of grid cell i,j
             # and d_lon, d_lat the sub-sampling steps
+            i1, i2 = max(i - 1, 0), min(i + 1, i_lim - 1)  # b is before, a is after
+            j1, j2 = max(j - 1, 0), min(j + 1, j_lim - 1)
+
             lon0, lat0 = xlon[i, j], xlat[i, j]
-            i_b, i_a = max(i - 1, 0), min(i + 1, i_lim - 1)
-            j_b, j_a = max(j - 1, 0), min(j + 1, j_lim - 1)
-            d_lon = (xlon[i, j_a] - xlon[i, j_b]) / subres / (j_a - j_b)
-            d_lat = (xlat[i_a, j] - xlat[i_b, j]) / subres / (i_a - i_b)
-            # print('% 3.0f % 3.0f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
-            # (i, j, lat0, lon0, d_lat, d_lon))
+            di_lon_1 = (xlon[i, j] - xlon[i, j1]) / subres / (j - j1) if j > j1 else NaN
+            di_lon_2 = (xlon[i, j2] - xlon[i, j]) / subres / (j2 - j) if j2 > j else NaN
+            dj_lat_1 = (xlat[i, j] - xlat[i1, j]) / subres / (i - i1) if i > i1 else NaN
+            dj_lat_2 = (xlat[i2, j] - xlat[i, j]) / subres / (i2 - i) if i2 > i else NaN
+            # print('% 3.0f % 3.0f\t% 2.4f % 2.4f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
+            # (i, j, lat0, lon0, dj_lat_1, di_lon_1, dj_lat_2, di_lon_2))
 
             # Make an array of subres*subres evenly spaced points inside cell
             points = []
             sub_points.append(points)
-            for sub_i in range(subres):
-                sub_i -= (subres - 1) / 2
-                lon = lon0 + sub_i * d_lon
+            for lon in linear_interpolate(lon0, subres, di_lon_1, di_lon_2):
                 # print(end='\t')
-                for sub_j in range(subres):
-                    sub_j -= (subres - 1) / 2
-                    lat = lat0 + sub_j * d_lat
+                for lat in linear_interpolate(lat0, subres, dj_lat_1, dj_lat_2):
                     # print('% 2.4f % 2.4f' % (lat, lon), end='\t')
                     point = shapely.geometry.Point(lon, lat)
                     points.append(point)
                     # print()
     return sub_points
+
+
+def interpolate_height(height, subres):
+    print('\nCreate %s*%s interpolated heights in each of %s*%s cells' %
+          (subres, subres, height.shape[0], height.shape[1]))
+
+    i_lim, j_lim = height.shape
+    sub_heights = []
+    for i in range(0, i_lim):
+        for j in range(0, j_lim):
+            # Find lat0,lon0 centre of grid cell i,j
+            # and d_lon, d_lat the sub-sampling steps
+            i1, i2 = max(i - 1, 0), min(i + 1, i_lim - 1)  # b is before, a is after
+            j1, j2 = max(j - 1, 0), min(j + 1, j_lim - 1)
+
+            hgt0 = height[i, j]
+            di_hgt_1 = (height[i, j] - height[i, j1]) / subres / (j - j1) if j > j1 else NaN
+            di_hgt_2 = (height[i, j2] - height[i, j]) / subres / (j2 - j) if j2 > j else NaN
+            dj_hgt_1 = (height[i, j] - height[i1, j]) / subres / (i - i1) if i > i1 else NaN
+            dj_hgt_2 = (height[i2, j] - height[i, j]) / subres / (i2 - i) if i2 > i else NaN
+            # print('% 3.0f % 3.0f\t% 4.4f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
+            # (i, j, hgt0, di_hgt_1, di_hgt_2, dj_hgt_1, dj_hgt_2))
+
+            # Make an array of subres*subres evenly spaced points inside cell
+            heights = []
+            for hgt_i in linear_interpolate(hgt0, subres, di_hgt_1, di_hgt_2):
+                # print(end='\t')
+                for hgt_j in linear_interpolate(hgt0, subres, dj_hgt_1, dj_hgt_2):
+                    hgt_ij = max((hgt_i + hgt_j) / 2, 0)
+                    # print('% 4.4f' % hgt_ij, end='\t')
+                    heights.append(hgt_ij)
+                    # print()
+            sub_heights.append(heights)
+    return sub_heights
+
+
+def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_ranges):
+    """
+    Splits the sub_points array into an array of points for each 100m height
+    range, so sub_points_by_height[2] would be the points whose ground-height
+    is in [200m, 300m[
+
+    Continues until all points have been put in a range and writes None for
+    pointless ranges.
+
+    :param sub_points: Array of points to split
+    :param sub_heights: Array of same dimension as sub_points with the height of each point in each location.
+    :return: array of numpy arrays of points, one for each height range
+    """
+    total_point_count = len(sub_points) * len(sub_points[0])
+    sorted_point_count = 0
+    ranges = []
+    range_start = 0
+    range_end = range_start + height_ranges
+    while sorted_point_count < total_point_count:
+        range_points = []
+        range_point_count = 0
+        for points, heights in zip(sub_points, sub_heights):
+            rp = []
+            for point, height in zip(points, heights):
+                if range_start <= height < range_end:
+                    rp.append(point)
+            range_points.append(rp)
+            range_point_count += len(rp)
+        ranges.append(range_points if range_point_count else None)
+        sorted_point_count += range_point_count
+        print('%7d points in %4dm .. %4d:% 10.2fkm²' %
+              (range_point_count, range_start, range_end, range_point_count * sub_cell_area))
+        range_start, range_end = range_end, range_end + height_ranges
+    return ranges
 
 
 def read_shapefile(shapefile, tx):
@@ -119,44 +223,50 @@ def coord_transform(from_sr_id, to_sr_id):
 
 # CALCULATE WEIGHTS
 
-class ByFile(object):
-    """
-    Holds a list of polygons read from a shape file, along with region name
-    and weight matrix for each.
-    """
-
-    def __init__(self, file, polygons, regions, weights):
-        self.file = file
-        self.polygons = polygons or []
-        self.regions = regions or []
-        self.weights = weights or []
-
-    def add(self, polygon, region, weight):
-        self.polygons.append(polygon)
-        self.regions.append(region)
-        self.weights.append(weight)
-
-    def label(self):
-        return plain_name(self.file)
-
-
-class ByRegion(object):
-    """
-    Holds a list of polygons that define a region and the sum of their weight
-    matrices.
-    """
-
-    def __init__(self, region, grid_shape):
+class LabelledWeights(object):
+    def __init__(self, region, height, levels, sub_cell_area, polygons, weights):
         self.region = region
-        self.polygons = []
-        self.weights = numpy.zeros(grid_shape, dtype=int)
+        """ a key for the region """
 
-    def add(self, polygon, weights):
-        self.polygons.append(polygon)
-        self.weights += weights
+        self.height = height
+        """ the bottom of the height range we're looking at """
 
-    def label(self):
-        return self.region
+        self.levels = levels
+        """ The number of sub-sampling points in each original grid cell """
+
+        self.sub_cell_area = sub_cell_area
+        """ The (approximate) area of the cell around each sub-sampling point. """
+
+        self.polygons = polygons if isinstance(polygons, list) else [polygons]
+        """ list of 1 or more polygons that the data comes from """
+
+        self.weights = weights
+        """
+        an ndarray indicating how many of the sub-sampling points from
+        the corresponding index in the total grid fall within the height range and
+        any of the polygons.
+        """
+
+    def area(self):
+        return numpy.sum(self.weights) * self.sub_cell_area
+
+    def __repr__(self):
+        return 'LW[%s:%s #%s %0.2fkm^2]' % (self.region, self.height, len(self.polygons), self.area())
+
+    def key(self):
+        return self.region, self.height
+
+    def eat(self, other):
+        """
+        :type other: LabelledWeights
+        """
+        assert self.region == other.region
+        assert self.height == other.height
+        assert self.levels == other.levels
+        assert self.sub_cell_area == other.sub_cell_area
+        if other.polygons not in self.polygons:
+            self.polygons.extend(other.polygons)
+        self.weights += other.weights
 
 
 def points_in_polygon(poly, sub_points_per_cell, shape):
@@ -176,41 +286,66 @@ def points_in_polygon(poly, sub_points_per_cell, shape):
     return weights
 
 
-def weigh_shapefiles(shape_files, tx, grid_shape, sub_points, levels, res):
+def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, sub_cell_area, height_ranges):
     """
-    Reads shapefiles and for each polygon, calculate a weight matrix and store
-    along with the name of the region.
+    Reads shapefiles and for each polygon,height pair, calculate a weight grid
+    for how many sub-points at that height fall within the polygon.
+
+    Returns a list of LabelledWeights(region, height, polygons, weights) instances,
+    some of which may refer to the same region,height pairs.
     """
     results = []
     for shape_file, regions in shape_files.items():
-        print('Read %s -> %s' % (shape_file, ', '.join(regions)))
+
+        print('\nRead', shape_file)
+
         polygon_points = read_shapefile(shape_file, tx)
         polygon_shapes = [shapely.geometry.Polygon(polygon)
                           for polygon in polygon_points]
-        weights = [points_in_polygon(shape, sub_points, grid_shape)
-                   for shape in polygon_shapes]
-        results.append(ByFile(shape_file, polygon_shapes, regions, weights))
-
-        if len(weights) != len(regions):
-            print('WARNING: %s regions do not correspond to %s read polygons',
-                  len(regions), len(weights))
-        for weight, region in zip(weights, regions):
-            area = numpy.sum(weight) / levels * res[0] * res[1]
-            print('  %s: %0.2f km²' % (region, area / 1000000))
+        for poly, region in zip(polygon_shapes, regions):
+            print('% 15s' % region, end='')
+            for height_index, sub_points in enumerate(sub_points_by_height):
+                weights = points_in_polygon(poly, sub_points, grid_shape)
+                area = numpy.sum(weights) * sub_cell_area
+                height = height_index * height_ranges
+                if area:
+                    print('\t', height, end='')
+                    r = LabelledWeights(region, height, levels, sub_cell_area, poly, weights)
+                    results.append(r)
+            print()
 
     return results
 
 
-def shuffle_weights(weights_by_file, grid_shape):
-    results = dict()
-    for by_file in weights_by_file:
-        for polygon, region, weights in zip(by_file.polygons, by_file.regions, by_file.weights):
-            result = results.get(region, None)
-            if result is None:
-                result = results[region] = ByRegion(region, grid_shape)
-            result.add(polygon, weights)
+def collate_weights(raw_weights):
+    print('\nCollate weights by region and height')
+    scratch = dict()  # LabelledWeights objects by (region, height)
 
-    return list(results.values())
+    # Combine LabelledWeights instances with identical key
+    for raw in raw_weights:
+        key = raw.key()
+        weights = scratch.get(key)
+        if weights:
+            weights.eat(raw)
+        else:
+            scratch[key] = raw
+
+    # Group instances by region and sort by level
+    collated = defaultdict(lambda: [])
+    for lw in scratch.values():
+        collated[lw.region].append(lw)
+    for region, lwl in collated.items():
+        collated[region] = sorted(lwl, key=lambda lw: lw.height)
+
+    for k, v in collated.items():
+        print('\n ', k)
+        area = 0
+        for vv in v:
+            print('    % 5.0f % 8.2fkm²' % ( vv.height, vv.area()))
+            area += vv.area()
+        print('    TOTAL % 8.2fkm²' % area)
+
+    return collated
 
 
 # OUTPUT DATA
@@ -234,63 +369,108 @@ def write_weights(out_name, weights_by_region, levels, res):
 
 # PLOTTING
 
-def pre_plot(m, x, y, xhgt):
-    pylab.figure(figsize=(10, 8))
+def setup_basemap(xlat, xlon, levels_and_weights):
+    lat_min = +90
+    lat_max = -90
+    lon_min = +180
+    lon_max = -180
+    for law in levels_and_weights:
+        j_nz = numpy.nonzero(numpy.sum(law.weights, axis=0))
+        j_min, j_max = numpy.min(j_nz) - 1, numpy.max(j_nz) + 1
+        j_mid = (j_min + j_max) // 2
+        i_nz = numpy.nonzero(numpy.sum(law.weights, axis=1))
+        i_min, i_max = numpy.min(i_nz) - 1, numpy.max(i_nz) + 1
+        i_mid = (i_min + i_max) // 2
+        # print('ranges', i_min, i_max, j_min, j_max)
+
+        lat_min = min(lat_min, xlat[i_min, j_mid])
+        lat_max = max(lat_max, xlat[i_max, j_mid])
+
+        lon_min = min(lon_min, xlon[i_mid, j_min])
+        lon_max = max(lon_max, xlon[i_mid, j_max])
+    # print('lat: % 10.2f - % 10.2f' % (lat_min, lat_max))
+    # print('lon: % 10.2f - % 10.2f' % (lon_min, lon_max))
+
+    shrink = max(
+        (lat_max - lat_min) / (66.5 - 63.25),
+        (lon_max - lon_min) / (24.2 - 13.1)
+    )
+
+    m = Basemap(projection='stere', lat_ts=65., lat_0=65., lon_0=-19.,
+                llcrnrlon=lon_min, llcrnrlat=lat_min,
+                urcrnrlon=lon_max, urcrnrlat=lat_max,
+                resolution='i')
+    x, y = m(xlon, xlat)
+    return m, x, y, shrink
+
+
+def pre_plot(m, x, y, xhgt, height_ranges):
+    pylab.figure(figsize=(11.02, 8.27), dpi=72, frameon=True)
     m.drawcoastlines(linewidth=1.5, color='black')
     m.readshapefile('joklar/joklar', 'joklar', linewidth=1.5, color='black')
-    m.drawparallels(numpy.arange(63., 67., 1.), labels=[1, 0, 0, 0])
-    m.drawmeridians(numpy.arange(-26., -12., 2.), labels=[0, 0, 0, 1])
+    m.drawparallels(numpy.arange(63., 67., .1), labels=[1, 0, 0, 0])
+    m.drawmeridians(numpy.arange(-26., -12., .2), labels=[0, 0, 0, 1])
     m.drawmapscale(-15., 63.5, -19., 65., 100., barstyle='fancy', fontsize=12)
-    iso = numpy.arange(200., 2300., 200.)
-    m.contour(x, y, xhgt, iso, colors='black', linewidths=0.4)
+    iso = numpy.arange(height_ranges, 2300, height_ranges)
+    cs = m.contour(x, y, xhgt, iso, colors='#808080', linewidths=0.5)
+    pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
+    return m
 
 
-def post_plot(plot_name):
-    print('Write plot', plot_name)
-    pylab.savefig(plot_name, dpi=300)
+def post_plot(plot_prefix, plot_name):
+    plot_file = plot_prefix + '-' + plot_name + '.svg'
+    print(' ', plot_file)
+    # pylab.legend(ncol=2, fontsize='x-small')
+    pylab.title(plot_name)
+    pylab.savefig(plot_file)
     pylab.clf()
     pylab.close()
-    id1 = subprocess.Popen([
-        'gm', 'convert', '-trim', '+repage',
-        plot_name, plot_name
-    ])
-    id1.wait()
+    # id1 = subprocess.Popen([
+    # 'gm', 'convert', '-trim', '+repage',
+    # plot_name, plot_name
+    # ])
+    # id1.wait()
 
 
-def plot_data(m, plot_file, weights_by_region, x, y, xhgt, levels, res):
+def plot_data(plot_prefix, collated_weights, xlat, xlon, xhgt, height_ranges):
     """
-    :type m: Basemap
-    :type plot_file: string
-    :type weights_by_region: dict of string, ByRegion
+    :type plot_prefix: string
+    :type collated_weights: dict of [str, LabelledWeights]
     """
-    print('Plot map')
-    pre_plot(m, x, y, xhgt)
-    markers = product(('o', '*', 'x'), ('r', 'g', 'b', 'c', 'm', 'y', 'k'))
-    sizes = {'o': 2, '*': 3, 'x': 3, }
 
-    for by_region, (style, color) in zip(weights_by_region, markers):
-        marker = color + style
-        area = numpy.sum(by_region.weights) / levels * res[0] * res[1] / 1000000
-        print('Plot %s[%s]\t% 4.2f km²' % (by_region.region, marker, area))
-        for i, polygon in enumerate(by_region.polygons):
+    print('\nPlot maps')
+    # symbols = ('o', '*', '+', 'x')
+    symbols = ('o', '*')
+    colors = ('r', 'g', 'b', 'c', 'm', 'y', 'k')
+    sizes = {'o': 3, '*': 4, 'x': 3, '+': 3}
+
+    for region, levels_and_weights in collated_weights.items():
+        markers = izip(cycle(colors), cycle(symbols))
+        m, x, y, shrink = setup_basemap(xlat, xlon, levels_and_weights)
+        pre_plot(m, x, y, xhgt, height_ranges)
+
+        # Plot all polygons which contribute to the region
+        for polygon in chain(*(law.polygons for law in levels_and_weights)):
             x_p, y_p = m(polygon.exterior.xy[0], polygon.exterior.xy[1])
-            label = style + ' ' + by_region.region if i == 0 else None
-            m.plot(x_p, y_p, color + '-', lw=1, label=label, alpha=0.5)
-        for level in range(levels):
-            mask1 = by_region.weights <= level + 1
-            mask2 = by_region.weights > level
-            mask = mask1 & mask2
-            size = sizes[style] * level / levels
-            m.plot(x[mask], y[mask], marker, ms=size, mec=color)
+            m.plot(x_p, y_p, 'b-', lw=2, alpha=0.5)
 
-    pylab.legend(ncol=2, fontsize='x-small')
-    post_plot(plot_file)
+        # Plot all weight grids that contribute to the region
+        for law, (color, style) in zip(levels_and_weights, markers):
+            marker = color + style
+            for level in range(law.levels):
+                mask1 = law.weights <= level + 1
+                mask2 = law.weights > level
+                mask = mask1 & mask2
+                size = sizes[style] * sqrt((level + 1) / law.levels) / shrink
+                m.plot(x[mask], y[mask], marker, ms=size, mec=color, alpha=3 / 4)
+
+        post_plot(plot_prefix, region)
 
 
 # MAIN FUNCTION
 
 def main():
-    config, plot_file = read_config()
+    config, plot_prefix = read_config()
 
     # Define the coordinate transformation needed for shapefiles
     tx = coord_transform(config['shape_spatial_reference'],
@@ -301,27 +481,27 @@ def main():
         xhgt = dataset.variables['HGT_M'][0]
         xlon = dataset.variables['XLONG_M'][0]
         xlat = dataset.variables['XLAT_M'][0]
-        res = [dataset.DX.item(), dataset.DY.item()]
+        height = dataset.variables['HGT_M']
+        height = height[0]
+        resolution = [dataset.DX.item(), dataset.DY.item()]
         grid_shape = xlon.shape
 
     subres = config['sub_sampling']
+    height_ranges = int(config['height_ranges'])
     levels = subres ** 2
+    sub_cell_area = resolution[0] * resolution[1] / levels / 1000000
     sub_points = sub_sample_grid(xlon, xlat, subres)
+    sub_heights = interpolate_height(height, subres)
+    sub_points_by_height = split_points_by_height(sub_points, sub_heights, sub_cell_area, height_ranges)
 
-    print('Create map projection')
-    m = Basemap(projection='stere', lat_ts=65., lat_0=65., lon_0=-19.,
-                llcrnrlon=-24.2, llcrnrlat=63.25,
-                urcrnrlon=-13.1, urcrnrlat=66.5,
-                resolution='i' if plot_file else None)
-    x, y = m(xlon, xlat)
+    labelled_weights = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points_by_height,
+                                        levels, sub_cell_area, height_ranges)
+    collated_weights = collate_weights(labelled_weights)
 
-    weights_by_file = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points, levels, res)
-    weights_by_region = shuffle_weights(weights_by_file, grid_shape)
+    if plot_prefix:
+        plot_data(plot_prefix, collated_weights, xlat, xlon, xhgt, height_ranges)
 
-    if plot_file:
-        plot_data(m, plot_file, weights_by_region, x, y, xhgt, levels, res)
-
-    write_weights(config['output'], weights_by_region, levels, res)
+        # write_weights(config['output'], labelled_weights, sub_cell_area)
 
 
 if __name__ == '__main__':
