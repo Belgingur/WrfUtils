@@ -1,28 +1,34 @@
 geofile: 'geo_em.d02.nc'
-sub_sampling: 5
-height_ranges: 100
+sub_sampling: 10
+height_resolution: 100
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
 shape_files:
-    'Shapefiles/Bla_isn93.shp':
+    'shapefiles/Bla_isn93.shp':
      - 'blondulon'
-    'Shapefiles/THJ_KVI.shp':
+    'shapefiles/THJ_KVI.shp':
      - 'kvislarveita'
-    'Shapefiles/Fljotsdalsstod_vatnasvid.shp':
+    'shapefiles/Fljotsdalsstod_vatnasvid.shp':
     - 'ufsarlon'
     - 'halslon'
     - 'hraunaveita'
     - 'hraunaveita'
     - 'hraunaveita'
     - 'hraunaveita'
-    'Shapefiles/Thj_Sul_Bud.shp':
+    'shapefiles/Thj_Sul_Bud.shp':
      - 'sultartangi'
      - 'budarhals'
-    'Shapefiles/THJ_HAG.shp':
+    'shapefiles/THJ_HAG.shp':
     - 'hagongulon'
-    'Shapefiles/TU_SIG.shp':
+    'shapefiles/TU_SIG.shp':
     - 'tungnaa'
     - 'thorisvatn'
     - 'tungnaa'
 
-output: 'weigths.yml'
+# Write weight grids to these files
+weight_file_pattern: 'weights/{key}.ndarray'
+region_height_key_pattern: '{region}_{min_height}_{max_height}'
+region_total_key_pattern: '{region}'
+
+# Plot regions to these files:
+plot_file_pattern: 'plots/{key}.svg'

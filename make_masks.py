@@ -10,7 +10,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 # Python library imports
 import argparse
 from collections import defaultdict
-from itertools import chain, cycle, izip
+from itertools import cycle, izip
 import netCDF4
 import os
 from math import isnan, sqrt
@@ -18,7 +18,7 @@ from math import isnan, sqrt
 import numpy
 import pylab
 from mpl_toolkits.basemap import Basemap
-import shapely.geometry
+from shapely.geometry import Point, Polygon
 import ogr
 import osr
 import sys
@@ -39,13 +39,11 @@ def read_config():
     )
     parser.add_argument('--config', default='make_masks.yml',
                         help='Read configuration from this file (def: make_masks.yml)')
-    parser.add_argument('--plot', type=str, default=None,
-                        help='Plot the generated masks to this file (def: None)')
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.load(f)
-        return config, args.plot
+        return config
 
 
 def linear_interpolate(x0, n, d1, d2):
@@ -108,7 +106,7 @@ def sub_sample_grid(xlon, xlat, subres):
                 # print(end='\t')
                 for lat in linear_interpolate(lat0, subres, dj_lat_1, dj_lat_2):
                     # print('% 2.4f % 2.4f' % (lat, lon), end='\t')
-                    point = shapely.geometry.Point(lon, lat)
+                    point = Point(lon, lat)
                     points.append(point)
                     # print()
     return sub_points
@@ -148,7 +146,7 @@ def interpolate_height(height, subres):
     return sub_heights
 
 
-def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_ranges):
+def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res):
     """
     Splits the sub_points array into an array of points for each 100m height
     range, so sub_points_by_height[2] would be the points whose ground-height
@@ -165,7 +163,7 @@ def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_ranges
     sorted_point_count = 0
     ranges = []
     range_start = 0
-    range_end = range_start + height_ranges
+    range_end = range_start + height_res
     while sorted_point_count < total_point_count:
         range_points = []
         range_point_count = 0
@@ -180,7 +178,7 @@ def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_ranges
         sorted_point_count += range_point_count
         print('%7d points in %4dm .. %4d:% 10.2fkm²' %
               (range_point_count, range_start, range_end, range_point_count * sub_cell_area))
-        range_start, range_end = range_end, range_end + height_ranges
+        range_start, range_end = range_end, range_end + height_res
     return ranges
 
 
@@ -196,16 +194,21 @@ def read_shapefile(shapefile, tx):
     counts = layer.GetFeatureCount()
     polygons = []
     for c in range(counts):
-        feature = layer.GetFeature(c)
-        geometry = feature.GetGeometryRef()
+        try:
+            feature = layer.GetFeature(c)
+            geometry = feature.GetGeometryRef()
 
-        # Do the coordinate transformation
-        geometry.Transform(tx)
+            # Do the coordinate transformation
+            geometry.Transform(tx)
 
-        # Read the polygon (there is just one) and the defining points.
-        polygon = geometry.GetGeometryRef(0)
-        polygons.append(polygon.GetPoints())
-
+            # Read the polygon (there is just one) and the defining points.
+            points = geometry.GetGeometryRef(0).GetPoints()
+            polygons.append(Polygon(points))
+        except TypeError as te:
+            if 'Geometry_Transform' in str(te):
+                print('ERROR:', str(te))
+                print('You may need to set environment variable GDAL_DATA="/usr/share/gdal/1.10/" or similar')
+                sys.exit(1)
     # Stand and deliver
     return polygons
 
@@ -224,12 +227,15 @@ def coord_transform(from_sr_id, to_sr_id):
 # CALCULATE WEIGHTS
 
 class LabelledWeights(object):
-    def __init__(self, region, height, levels, sub_cell_area, polygons, weights):
+    def __init__(self, region, min_height, max_height, levels, sub_cell_area, polygons, weights, atomic=True):
         self.region = region
         """ a key for the region """
 
-        self.height = height
-        """ the bottom of the height range we're looking at """
+        self.min_height = min_height
+        """ the bottom of the height range we're looking at (inclusive) """
+
+        self.max_height = max_height
+        """ the top of the height range we're looking at (exclusive) """
 
         self.levels = levels
         """ The number of sub-sampling points in each original grid cell """
@@ -237,8 +243,8 @@ class LabelledWeights(object):
         self.sub_cell_area = sub_cell_area
         """ The (approximate) area of the cell around each sub-sampling point. """
 
-        self.polygons = polygons if isinstance(polygons, list) else [polygons]
-        """ list of 1 or more polygons that the data comes from """
+        self.polygons = {polygons} if isinstance(polygons, Polygon) else set(polygons)
+        """ set of 1 or more polygons that the data comes from """
 
         self.weights = weights
         """
@@ -247,26 +253,44 @@ class LabelledWeights(object):
         any of the polygons.
         """
 
+        self.atomic = atomic
+        """ Whether this is an original region/height combination as opposed to a summation. """
+
+    def copy(self, content=True):
+        if content:
+            return LabelledWeights(self.region, self.min_height, self.max_height,
+                                   self.levels, self.sub_cell_area,
+                                   self.polygons, self.weights, self.atomic)
+        else:
+            return LabelledWeights(self.region, None, None,
+                                   self.levels, self.sub_cell_area,
+                                   set(), numpy.zeros_like(self.weights), True)
+
     def area(self):
-        return numpy.sum(self.weights) * self.sub_cell_area
+        return float(numpy.sum(self.weights)) * self.sub_cell_area
 
     def __repr__(self):
-        return 'LW[%s:%s #%s %0.2fkm^2]' % (self.region, self.height, len(self.polygons), self.area())
+        return 'LW[%s %s%s-%s #%s %0.2fkm^2]' % \
+               (self.region, 'sum:' if not self.atomic else '', self.min_height, self.max_height,
+                len(self.polygons), self.area())
 
     def key(self):
-        return self.region, self.height
+        return self.region, self.min_height, self.max_height
 
-    def eat(self, other):
-        """
-        :type other: LabelledWeights
-        """
+    def __add__(self, other):
         assert self.region == other.region
-        assert self.height == other.height
         assert self.levels == other.levels
         assert self.sub_cell_area == other.sub_cell_area
-        if other.polygons not in self.polygons:
-            self.polygons.extend(other.polygons)
-        self.weights += other.weights
+        return LabelledWeights(
+            self.region,
+            min(self.min_height, other.min_height) if self.min_height is not None else other.min_height,
+            max(self.max_height, other.max_height) if self.max_height is not None else other.max_height,
+            self.levels,
+            self.sub_cell_area,
+            self.polygons.union(other.polygons),
+            self.weights + other.weights,
+            False
+        )
 
 
 def points_in_polygon(poly, sub_points_per_cell, shape):
@@ -286,7 +310,7 @@ def points_in_polygon(poly, sub_points_per_cell, shape):
     return weights
 
 
-def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, sub_cell_area, height_ranges):
+def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, sub_cell_area, height_res):
     """
     Reads shapefiles and for each polygon,height pair, calculate a weight grid
     for how many sub-points at that height fall within the polygon.
@@ -299,18 +323,16 @@ def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, 
 
         print('\nRead', shape_file)
 
-        polygon_points = read_shapefile(shape_file, tx)
-        polygon_shapes = [shapely.geometry.Polygon(polygon)
-                          for polygon in polygon_points]
-        for poly, region in zip(polygon_shapes, regions):
+        polygons = read_shapefile(shape_file, tx)
+        for poly, region in zip(polygons, regions):
             print('% 15s' % region, end='')
             for height_index, sub_points in enumerate(sub_points_by_height):
                 weights = points_in_polygon(poly, sub_points, grid_shape)
                 area = numpy.sum(weights) * sub_cell_area
-                height = height_index * height_ranges
+                height = height_index * height_res
                 if area:
                     print('\t', height, end='')
-                    r = LabelledWeights(region, height, levels, sub_cell_area, poly, weights)
+                    r = LabelledWeights(region, height, height + height_res, levels, sub_cell_area, poly, weights)
                     results.append(r)
             print()
 
@@ -319,31 +341,32 @@ def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, 
 
 def collate_weights(raw_weights):
     print('\nCollate weights by region and height')
-    scratch = dict()  # LabelledWeights objects by (region, height)
+    scratch = defaultdict()  # LabelledWeights objects by (region, height)
 
     # Combine LabelledWeights instances with identical key
     for raw in raw_weights:
         key = raw.key()
-        weights = scratch.get(key)
-        if weights:
-            weights.eat(raw)
+        cooked = scratch.get(key)
+        if cooked:
+            cooked += raw
         else:
-            scratch[key] = raw
+            scratch[key] = raw.copy(True)
 
     # Group instances by region and sort by level
     collated = defaultdict(lambda: [])
     for lw in scratch.values():
         collated[lw.region].append(lw)
     for region, lwl in collated.items():
-        collated[region] = sorted(lwl, key=lambda lw: lw.height)
+        collated[region] = sorted(lwl, key=lambda lw: (lw.min_height, lw.max_height))
 
-    for k, v in collated.items():
-        print('\n ', k)
-        area = 0
-        for vv in v:
-            print('    % 5.0f % 8.2fkm²' % ( vv.height, vv.area()))
-            area += vv.area()
-        print('    TOTAL % 8.2fkm²' % area)
+    for region, lw_list in collated.items():
+        print('\n ', region)
+        total = lw_list[0].copy(False)
+        for lw in lw_list:
+            print('    % 5.0f % 8.2fkm²' % (lw.min_height, lw.area()))
+            total += lw
+        print('    TOTAL % 8.2fkm²' % total.area())
+        lw_list.append(total)
 
     return collated
 
@@ -354,17 +377,15 @@ def plain_name(shape_file):
     return os.path.splitext(os.path.basename(shape_file))[0]
 
 
-def write_weights(out_name, weights_by_region, levels, res):
-    data = {
-        by_region.region: by_region.weights.tolist()
-        for by_region in weights_by_region
-    }
-    data['levels'] = levels
-    data['res'] = res
-
-    data = yaml.dump(data)
-    with open(out_name, 'w') as out:
-        out.write(data)
+def write_weights(collated_weights, weight_file_pattern, region_height_key_pattern, region_total_key_pattern):
+    for region, lw_list in collated_weights.items():
+        for lw in lw_list:
+            pattern = region_height_key_pattern if lw.atomic else region_total_key_pattern
+            lwd = lw.__dict__
+            key = pattern.format(**lwd)
+            file_name = weight_file_pattern.format(key=key, **lwd)
+            print('write', file_name)
+            lw.weights.tofile(file_name)
 
 
 # PLOTTING
@@ -404,37 +425,32 @@ def setup_basemap(xlat, xlon, levels_and_weights):
     return m, x, y, shrink
 
 
-def pre_plot(m, x, y, xhgt, height_ranges):
+def pre_plot(m, x, y, xhgt, height_res):
     pylab.figure(figsize=(11.02, 8.27), dpi=72, frameon=True)
     m.drawcoastlines(linewidth=1.5, color='black')
     m.readshapefile('joklar/joklar', 'joklar', linewidth=1.5, color='black')
     m.drawparallels(numpy.arange(63., 67., .1), labels=[1, 0, 0, 0])
     m.drawmeridians(numpy.arange(-26., -12., .2), labels=[0, 0, 0, 1])
     m.drawmapscale(-15., 63.5, -19., 65., 100., barstyle='fancy', fontsize=12)
-    iso = numpy.arange(height_ranges, 2300, height_ranges)
+    iso = numpy.arange(height_res, 2300, height_res)
     cs = m.contour(x, y, xhgt, iso, colors='#808080', linewidths=0.5)
     pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
     return m
 
 
-def post_plot(plot_prefix, plot_name):
-    plot_file = plot_prefix + '-' + plot_name + '.svg'
+def post_plot(plot_file_pattern, region_total_key_pattern, law):
+    key = region_total_key_pattern.format(**law.__dict__)
+    plot_file = plot_file_pattern.format(key=key)
     print(' ', plot_file)
-    # pylab.legend(ncol=2, fontsize='x-small')
-    pylab.title(plot_name)
+    pylab.title(law.region)
     pylab.savefig(plot_file)
     pylab.clf()
     pylab.close()
-    # id1 = subprocess.Popen([
-    # 'gm', 'convert', '-trim', '+repage',
-    # plot_name, plot_name
-    # ])
-    # id1.wait()
 
 
-def plot_data(plot_prefix, collated_weights, xlat, xlon, xhgt, height_ranges):
+def plot_data(collated_weights, xlat, xlon, xhgt, height_res, plot_file_pattern, region_total_key_pattern):
     """
-    :type plot_prefix: string
+    :type plot_file_pattern: string
     :type collated_weights: dict of [str, LabelledWeights]
     """
 
@@ -447,30 +463,33 @@ def plot_data(plot_prefix, collated_weights, xlat, xlon, xhgt, height_ranges):
     for region, levels_and_weights in collated_weights.items():
         markers = izip(cycle(colors), cycle(symbols))
         m, x, y, shrink = setup_basemap(xlat, xlon, levels_and_weights)
-        pre_plot(m, x, y, xhgt, height_ranges)
+        pre_plot(m, x, y, xhgt, height_res)
 
-        # Plot all polygons which contribute to the region
-        for polygon in chain(*(law.polygons for law in levels_and_weights)):
-            x_p, y_p = m(polygon.exterior.xy[0], polygon.exterior.xy[1])
-            m.plot(x_p, y_p, 'b-', lw=2, alpha=0.5)
-
-        # Plot all weight grids that contribute to the region
         for law, (color, style) in zip(levels_and_weights, markers):
-            marker = color + style
-            for level in range(law.levels):
-                mask1 = law.weights <= level + 1
-                mask2 = law.weights > level
-                mask = mask1 & mask2
-                size = sizes[style] * sqrt((level + 1) / law.levels) / shrink
-                m.plot(x[mask], y[mask], marker, ms=size, mec=color, alpha=3 / 4)
 
-        post_plot(plot_prefix, region)
+            if not law.atomic:
+                # Draw the polygons that make up the total region
+                for polygon in law.polygons:
+                    x_p, y_p = m(polygon.exterior.xy[0], polygon.exterior.xy[1])
+                    m.plot(x_p, y_p, 'b-', lw=2, alpha=0.5)
+
+            else:
+                # Plot all weight grids that contribute to the region
+                marker = color + style
+                for level in range(law.levels):
+                    mask1 = law.weights <= level + 1
+                    mask2 = law.weights > level
+                    mask = mask1 & mask2
+                    size = sizes[style] * sqrt((level + 1) / law.levels) / shrink
+                    m.plot(x[mask], y[mask], marker, ms=size, mec=color, alpha=3 / 4)
+
+        post_plot(plot_file_pattern, region_total_key_pattern, law)
 
 
 # MAIN FUNCTION
 
 def main():
-    config, plot_prefix = read_config()
+    config = read_config()
 
     # Define the coordinate transformation needed for shapefiles
     tx = coord_transform(config['shape_spatial_reference'],
@@ -487,21 +506,26 @@ def main():
         grid_shape = xlon.shape
 
     subres = config['sub_sampling']
-    height_ranges = int(config['height_ranges'])
+    height_res = int(config['height_resolution'])
     levels = subres ** 2
     sub_cell_area = resolution[0] * resolution[1] / levels / 1000000
     sub_points = sub_sample_grid(xlon, xlat, subres)
     sub_heights = interpolate_height(height, subres)
-    sub_points_by_height = split_points_by_height(sub_points, sub_heights, sub_cell_area, height_ranges)
+    sub_points_by_height = split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res)
 
     labelled_weights = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points_by_height,
-                                        levels, sub_cell_area, height_ranges)
+                                        levels, sub_cell_area, height_res)
     collated_weights = collate_weights(labelled_weights)
 
-    if plot_prefix:
-        plot_data(plot_prefix, collated_weights, xlat, xlon, xhgt, height_ranges)
+    write_weights(collated_weights,
+                  config['weight_file_pattern'],
+                  config['region_height_key_pattern'],
+                  config['region_total_key_pattern'])
 
-        # write_weights(config['output'], labelled_weights, sub_cell_area)
+    if config['plot_file_pattern']:
+        plot_data(collated_weights, xlat, xlon, xhgt, height_res,
+                  config['plot_file_pattern'],
+                  config['region_total_key_pattern'])
 
 
 if __name__ == '__main__':
