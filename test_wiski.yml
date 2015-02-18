@@ -1,0 +1,68 @@
+# Settings for make_masks
+geofile: 'wrfout/geo_em.d01.nc'
+sub_sampling: 2
+shape_spatial_reference: 3057  # isnet
+plot_spatial_reference: 4326  # wgs84 lat/lon
+shape_files:
+  shapefiles/Bla_isn93.shp:
+   - blondulon
+  shapefiles/THJ_KVI.shp:
+   - kvislarveita
+  shapefiles/Fljotsdalsstod_vatnasvid.shp:
+  - ufsarlon
+  - halslon
+  - hraunaveita
+  - hraunaveita
+  - hraunaveita
+  - hraunaveita
+  shapefiles/Thj_Sul_Bud.shp:
+   - sultartangi
+   - budarhals
+  shapefiles/THJ_HAG.shp:
+  - hagongulon
+  shapefiles/TU_SIG.shp:
+  - tungnaa
+  - thorisvatn
+  - tungnaa
+
+# Split each region into height bands at this interval [m]
+height_resolution: 100
+
+# Pattern to create key for total region withut height
+region_total_key_pattern: '{region}'
+
+# Pattern to create key for region/height combination
+region_height_key_pattern: '{region}_{min_height}_{max_height}'
+
+# Write weight grids to these files. Gets key from regional_*_key_pattern
+# Does not support place-holders in the directory part of the pattern.
+weight_file_pattern: 'test_weights/{region_key}.ndarray'
+
+# Plot regions to these files. Ges key from regional_total_key_pattern
+plot_file_pattern: 'test_plots/{region_key}.svg'
+
+# How many steps to skip from beginning of wrfout file.
+spinup_steps: 3
+
+# Pattern for output file-names
+output_file_pattern: 'test_wrf_wiski_{start_time:%Y-%m-%dT%H:%M}.rhis2'
+
+# Pattern for each line in the output data file
+output_line_pattern: 'wrf_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'
+
+# Variables to write to file for each step. They are either read directly from
+# wrfout file or returned by a load_data_VARNAM function.
+variables:
+- T2        # [°C]    Hiti í 2 metra hæð (e. temperature at 2m)
+- U10       # [m/s]   Austur-vestur þáttur vindhraða í 10 metra hæð (e. U wind component at 10m)
+- V10       # [m/s]   Norður-suður þáttur vindhraða í 10 metra hæð (e. V wind component at 10m)
+- PSFC      # [Pa]    Loftþrýstingur við yfirborð (e. surface pressure)
+- GLW       # [W/m²]  Langbylgjuinngeislun við yfirborð (e. downward long wave flux at ground surface)
+- SWDOWN    # [W/m²]  Stuttbylgjuinngeislun við yfirborð (e. downward short wave flux at ground surface)
+- SNOW      # [kg/m²] Uppsafnaður snjór (SNOW)
+
+# All precipitation values are per step. Summing over time gives accumulated precipitation.
+- PRECIP    # [kg/m²] Úrkoma (regn,slydda,snjór)
+- RAINFALL  # [kg/m²] Úrkoma sem fellur sem regn (PRECIP | SR<0.4)
+- SLEETFALL # [kg/m²] Úrkoma sem fellur hvorki sem regn né snjór (PRECIP | 0.4<=SR<0.7)
+- SNOWFALL  # [kg/m²] Úrkoma sem fellur sem snjór (PRECIP | 0.7<=SR)

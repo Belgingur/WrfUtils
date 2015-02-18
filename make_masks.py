@@ -37,13 +37,13 @@ def read_config():
         description=sys.modules[__name__].__doc__,
         epilog=None
     )
-    parser.add_argument('--config', default='make_masks.yml',
-                        help='Read configuration from this file (def: make_masks.yml)')
+    parser.add_argument('--config', default='wiski.yml',
+                        help='Read configuration from this file (def: wiski.yml)')
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.load(f)
-        return config
+    return config
 
 
 def linear_interpolate(x0, n, d1, d2):
@@ -383,7 +383,7 @@ def write_weights(collated_weights, weight_file_pattern, region_height_key_patte
             pattern = region_height_key_pattern if lw.atomic else region_total_key_pattern
             lwd = lw.__dict__
             key = pattern.format(**lwd)
-            file_name = weight_file_pattern.format(key=key, **lwd)
+            file_name = weight_file_pattern.format(region_key=key, **lwd)
             print('write', file_name)
             lw.weights.tofile(file_name)
 
@@ -440,7 +440,7 @@ def pre_plot(m, x, y, xhgt, height_res):
 
 def post_plot(plot_file_pattern, region_total_key_pattern, law):
     key = region_total_key_pattern.format(**law.__dict__)
-    plot_file = plot_file_pattern.format(key=key)
+    plot_file = plot_file_pattern.format(region_key=key)
     print(' ', plot_file)
     pylab.title(law.region)
     pylab.savefig(plot_file)
