@@ -9,8 +9,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 # Python library imports
 import argparse
-import os
-import re
+from gzip import GzipFile
 import netCDF4
 from datetime import datetime
 
@@ -44,22 +43,13 @@ def read_config():
 
 # PREPARE
 
-def read_weights(weight_file_pattern, levels):
-    dir, file_pattern = os.path.split(weight_file_pattern)
-    file_pattern = re.escape(file_pattern)
-    file_pattern = file_pattern.replace(re.escape('{region_key}'), '(.*)')
-    file_re = re.compile(file_pattern)
-    print('Locate weight files %s in %s', file_pattern, dir)
+def read_weights(weight_file, levels):
+    print('Read weights from', weight_file)
+    weight_map = np.load(weight_file)
     keys_and_weights = []
-    for fn in sorted(os.listdir(dir)):
-        match = file_re.match(fn)
-        if not match or match.lastindex != 1:
-            # print('skip', fn)
-            continue
-        key = match.group(1)
-        path = os.path.join(dir, fn)
-        weight_grid = np.fromfile(path, dtype=int)
-        total_weight = np.sum(weight_grid)
+    for key, weight_grid in sorted(weight_map.items()):
+        total_weight = np.sum(weight_grid) / levels
+        print('  {:<25s} {:5.2f} cl'.format(key, total_weight))
         keys_and_weights.append((key, weight_grid, total_weight))
     return keys_and_weights
 
@@ -127,7 +117,7 @@ DEFAULT_PRECISION = 2
 PRECISON = dict(
     PSFC=0
 )
-""" Output-precison of variables if other than the default """
+""" Output-precision of variables if other than the default """
 
 
 def read_data(wrfout, var_key):
@@ -158,7 +148,7 @@ def main():
     levels = config['sub_sampling'] ** 2
     spinup_steps = int(config['spinup_steps'])
 
-    region_keys_and_weights = read_weights(config['weight_file_pattern'], levels)
+    region_keys_and_weights = read_weights(config['weight_file'], levels)
     output_line_pattern = config['output_line_pattern']
     output_file_pattern = config['output_file_pattern']
     for wrfout_name in wrfouts:
@@ -168,15 +158,15 @@ def main():
             start_time = timestamps[spinup_steps]
             output_name = output_file_pattern.format(start_time=start_time)
             print('Write', output_name)
-            with open(output_name, 'w') as output_file:
+            with GzipFile(output_name, 'w') as output_file:
                 for var_key in config['variables']:
                     print('  ', var_key)
                     data, precision = read_data(wrfout, var_key)
                     # print(data.shape, np.min(data), np.average(data), np.max(data))
                     for region_key, weight_grid, total_weight in region_keys_and_weights:
                         # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
-                        weight_grid = weight_grid.reshape(data.shape[1:3])  # [i,j]
-                        weighed = data * weight_grid  # [i,j,t]
+                        # weight_grid = weight_grid.reshape(data.shape[1:3])  # [i,j]
+                        weighed = data * weight_grid / levels  # [i,j,t]
                         sum_over_time = np.sum(weighed, axis=(1, 2))  # t
                         avg_over_time = sum_over_time / total_weight
                         avg = np.average(avg_over_time[spinup_steps:])

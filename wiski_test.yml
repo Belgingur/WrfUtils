@@ -34,18 +34,17 @@ region_total_key_pattern: '{region}'
 # Pattern to create key for region/height combination
 region_height_key_pattern: '{region}_{min_height}_{max_height}'
 
-# Write weight grids to these files. Gets key from regional_*_key_pattern
-# Does not support place-holders in the directory part of the pattern.
-weight_file_pattern: 'test_weights/{region_key}.ndarray'
+# make_masks writes weight grids to this file and wisky.py reads them back
+weight_file: 'weights_test.npz'
 
 # Plot regions to these files. Ges key from regional_total_key_pattern
-plot_file_pattern: 'test_plots/{region_key}.svg'
+plot_file_pattern: 'plots_test/{region_key}.svg'
 
 # How many steps to skip from beginning of wrfout file.
 spinup_steps: 3
 
 # Pattern for output file-names
-output_file_pattern: 'test_wrf_wiski_{start_time:%Y-%m-%dT%H:%M}.rhis2'
+output_file_pattern: 'wrf_wiski_test_{start_time:%Y-%m-%dT%H:%M}.gz'
 
 # Pattern for each line in the output data file
 output_line_pattern: 'wrf_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'

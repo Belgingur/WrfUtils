@@ -377,15 +377,16 @@ def plain_name(shape_file):
     return os.path.splitext(os.path.basename(shape_file))[0]
 
 
-def write_weights(collated_weights, weight_file_pattern, region_height_key_pattern, region_total_key_pattern):
+def write_weights(collated_weights, weight_file, region_height_key_pattern, region_total_key_pattern):
+    by_region_key = {}
     for region, lw_list in collated_weights.items():
         for lw in lw_list:
             pattern = region_height_key_pattern if lw.atomic else region_total_key_pattern
             lwd = lw.__dict__
             key = pattern.format(**lwd)
-            file_name = weight_file_pattern.format(region_key=key, **lwd)
-            print('write', file_name)
-            lw.weights.tofile(file_name)
+            by_region_key[key] = lw.weights
+    print('\nWrite', weight_file)
+    numpy.savez_compressed(weight_file, **by_region_key)
 
 
 # PLOTTING
@@ -518,7 +519,7 @@ def main():
     collated_weights = collate_weights(labelled_weights)
 
     write_weights(collated_weights,
-                  config['weight_file_pattern'],
+                  config['weight_file'],
                   config['region_height_key_pattern'],
                   config['region_total_key_pattern'])
 
