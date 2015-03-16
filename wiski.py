@@ -75,6 +75,13 @@ def read_data_T2(wrfout, var_key):
     return wrfout.variables[var_key][:] - 272.15
 
 
+def read_data_WSPEED(wrfout, var_key):
+    V10 = wrfout.variables['V10'][:]
+    U10 = wrfout.variables['U10'][:]
+    WS = np.sqrt(U10 ** 2 + V10 ** 2)
+    return WS
+
+
 def read_data_PRECIP(wrfout, var_key):
     """
     Returns precipitation [t,i,j] as the change in RAINC+RAINCC between time
