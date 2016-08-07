@@ -1,0 +1,13 @@
+# Project files
+/.idea
+
+# Compiled files
+*.pyc
+
+# Backup files
+*~
+*.bak
+
+# Large binary files
+*.nc
+wrfouf_*
