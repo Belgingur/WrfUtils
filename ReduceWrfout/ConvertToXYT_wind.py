@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
 import os
 import sys
 import netCDF4
@@ -8,6 +11,14 @@ import time
 import subprocess
 import datetime
 import argparse
+
+import yaml
+
+def setup_logging(config_path='./logging.yml'):
+    with open(config_path) as configFile:
+        logging_config = yaml.load(configFile)
+        logging.config.dictConfig(logging_config)
+        logging.info('Configured logging from %s', config_path)
 
 
 def setup_output_file(netcdf_in, netcdf_out, dates):
@@ -144,8 +155,7 @@ desc = {'ws': 'Wind speed',
 start_time = time.time()
 
 # Setup logging
-logging.config.fileConfig('./logging.conf')
-logging.info('Have set up logging')
+setup_logging()
 
 # Now we calculate rime icing
 logging.info('Let us do some extra-dimensional wonders...')

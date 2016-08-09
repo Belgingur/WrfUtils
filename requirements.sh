@@ -4,4 +4,4 @@ source activate WrfUtils
 conda install --yes \
     pip \
     netcdf4=1.2 \
-    
+    pyyaml=3 \

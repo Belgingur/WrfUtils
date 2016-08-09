@@ -1,0 +1,69 @@
+
+# Whether to include variables by defualt.
+# TODO: Setting this to True currently fails as not enough dimensions are included in output and the ones that are will be duplicated
+default_include: False
+
+# If default_include is False, include only these variables a
+include:
+  - U10
+  - V10
+  - T2
+  - RAINNC
+  - SWDOWN
+
+# If default_include is True, include all but these variables.
+# The current list was enough to process a single Africa file, but we need more logic here.
+exclude:
+  - Times
+  - HGT
+  - XLAT
+  - XLONG
+  - ZNU
+  - ZNW
+  - ZS
+  - U
+  - V
+  - W
+  - PH
+  - PHB
+  - T
+  - TKE
+  - P
+  - ALT
+  - PB
+  - ZETATOP
+  - ITIMESTEP
+  - XTIME
+  - RELHUM
+  - QVAPOR
+  - QCLOUD
+  - QRAIN
+  - TSLB
+  - SMOIS
+  - TKE_PBL
+  - P_TOP
+  - XLAT_U
+  - XLAT_V
+  - XLONG_U
+  - XLONG_V
+  - BN2
+  - SAVE_TOPO_FROM_REAL
+  - SEED1
+  - SEED2
+
+
+# Override attributes in copied variables. Puttings e.g. '@U' instead of a
+overrides:
+  T2:
+    least_significant_digit: 2
+    scale_factor: 0.01
+    add_offset: 273
+    datatype: i2
+  U10:
+    least_significant_digit: 2
+    scale_factor: 0.01
+    datatype: u2
+  V10: '@U10'  # Use the settings for U10
+
+# Compression level for output file. 0 to disable, values 1-9 are passed to zlib
+deflate_level: 6
