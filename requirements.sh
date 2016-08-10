@@ -3,5 +3,7 @@ source activate WrfUtils
 
 conda install --yes \
     pip \
-    netcdf4=1.2 \
+    netcdf4=1.2.2 \
     pyyaml=3 \
+
+# ncdump is broken in netcdf=1.2.4
