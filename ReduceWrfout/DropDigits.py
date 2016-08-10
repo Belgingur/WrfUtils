@@ -29,9 +29,6 @@ __EMPTY__ = '__EMPTY__'
 
 chunkSize_days = 10
 
-# TODO: Is this preferable for contiguous in general?
-chunks_fixed = (16, 16, 128)
-
 
 def setup_logging(config_path='./logging.yml'):
     with open(config_path) as configFile:
@@ -132,8 +129,7 @@ def create_output_variables(outds, invars, config):
                                       datatype,
                                       dimensions=invar.dimensions,
                                       zlib=deflatelevel > 0, complevel=deflatelevel,
-                                      shuffle=True,
-                                      chunksizes=chunks_fixed)
+                                      shuffle=True)
         # TODO: fillValue = False for speed?
         # TODO: individual compression levels per variable?
         for field in ('description', 'least_significant_digit', 'scale_factor', 'add_offset',):
@@ -156,7 +152,7 @@ def execute(exe, *args):
 
     """
     cmd = [exe] + list(args)
-    LOG.debug(' '.join(cmd))
+    LOG.info(' '.join(cmd))
     try:
         __ = subprocess.check_call(cmd)
     except:
@@ -177,28 +173,31 @@ def setup_output_file(netcdf_in, netcdf_out, dates):
 
     """
 
-    # TODO: Proper tempfile handling
-    # TODO: Do we really want to reverse the order of dimensions?
+    netcdf_tmp = netcdf_out + '_tmp'
 
-    # First preprocess dataset
-    LOG.info('Running ncks on output file %s', netcdf_out)
-    execute('ncks', '-O', '-4', '-v', 'HGT,XLAT,XLONG', '-d', 'Time,0',
-            '--cnk_dmn', 'south_north,16', '--cnk_dmn', 'west_east,16',
-            netcdf_in, netcdf_out + '_tmp')
+    # Run external utilities to create the initial, mostly empty target file
+    try:
+        LOG.info('Create temporary copy with HGT,XLAT,XLONG')
+        execute('ncks', '-O', '-4',
+                '-v', 'HGT,XLAT,XLONG',
+                '-d', 'Time,0',
+                netcdf_in, netcdf_tmp)
 
-    # First make sure surface fields will be two-dim
-    LOG.info('Running ncwa on output file %s', netcdf_out)
-    execute('ncwa', '-O', '-4', '-a', 'Time', netcdf_out + '_tmp', netcdf_out + '_tmp2')
+        LOG.info('Average copied variables over time in to 2D')
+        execute('ncwa', '-O', '-4',
+                '-a', 'Time',
+                netcdf_tmp, netcdf_out)
 
-    # Transpose file
-    LOG.info('Running ncpdq on output file %s', netcdf_out)
-    execute('ncpdq', '-O', '-4', '-a', 'west_east,south_north', netcdf_out + '_tmp2', netcdf_out)
+        LOG.info('Copy original Time vector')
+        execute('ncks', '-A', '-4',
+                '-v', 'Times',
+                netcdf_in, netcdf_out)
 
-    # Add original time vector
-    LOG.info('Running ncks on output file %s', netcdf_out)
-    execute('ncks', '-A', '-4', '-v', 'Times', netcdf_in, netcdf_out)
+    finally:
+        if os.path.isfile(netcdf_tmp):
+            os.remove(netcdf_tmp)
 
-    outds = netCDF4.Dataset(netcdf_out, mode='r+', keepweakref=True)
+    outds = netCDF4.Dataset(netcdf_out, mode='r+', weakref=True)
 
     # Add some file meta-data
     LOG.info('Setting/updating global file attributes for output file %s', netcdf_out)
@@ -208,28 +207,24 @@ def setup_output_file(netcdf_in, netcdf_out, dates):
     outds.institution = 'Belgingur'
     outds.source2 = '%s' % (netcdf_in)
 
-    # Adding time vector, nx/ny-dims
+    # Adding more usable time vector
     LOG.info('Creating new dimensions and variables in %s', netcdf_out)
     times = outds.createVariable('times', 'f4', ('Time'))
     times.units = 'hours since 0001-01-01 00:00:00.0'
     times.calendar = 'gregorian'
     times[:] = dates[:]
+
+    # Adding nx/ny-dims
     outds.createDimension('nx', size=outds.variables['XLAT'].shape[0])
     outds.createDimension('ny', size=outds.variables['XLAT'].shape[1])
-    latitude = outds.createVariable('latitude', 'f4', ('nx', 'ny'),
-                                    chunksizes=(16, 16))
+    latitude = outds.createVariable('latitude', 'f4', ('nx', 'ny'))
     latitude[:] = outds.variables['XLAT'][:]
-    longitude = outds.createVariable('longitude', 'f4', ('nx', 'ny'),
-                                     chunksizes=(16, 16))
+    longitude = outds.createVariable('longitude', 'f4', ('nx', 'ny'))
     longitude[:] = outds.variables['XLONG'][:]
 
     # Flush to disk
     outds.sync()
     outds.close()
-
-    # Remove temporary files
-    os.remove(netcdf_out + '_tmp')
-    os.remove(netcdf_out + '_tmp2')
 
 
 def work_wrf_dates(times):
