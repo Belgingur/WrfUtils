@@ -76,7 +76,7 @@ def resolve_input_variables(inds, config):
     if default_include:
         LOG.info('Include all variables except %s', excludes)
     else:
-        LOG.info('Exclude all variables except %s', includes)
+        LOG.info('Include selected variables %s', ', '.join(includes))
 
     invars = []
     included_names = []
@@ -88,11 +88,12 @@ def resolve_input_variables(inds, config):
             invars.append(invar)
         else:
             excluded_names.append(var_name)
-    LOG.info('Included variables: %s', ', '.join(included_names))
     LOG.debug('Included variables: \n%s', '\n'.join(map(str, invars)))
     LOG.info('Excluded variables: %s', ', '.join(excluded_names))
 
-    if not default_include:
+    if default_include:
+        LOG.info('Included variables: %s', ', '.join(included_names))
+    else:
         unseen_vars = [var_name for var_name in includes if var_name not in included_names]
         if unseen_vars:
             LOG.warn('Missing variables in include list: %s', ', '.join(unseen_vars))
@@ -123,13 +124,14 @@ def override_field(outvar, name, override, invar, default=None):
 
 
 def create_output_variables(outds, invars, config):
+    LOG.info('Create output variables with overrides:')
     overrides = config.get('overrides', {})
     deflatelevel = config.get('deflatelevel', 0)
     outvars = []
     for invar in invars:
         var_name = invar.name
         override = overrides.get(var_name, {})
-        LOG.info('%s override: %s', var_name, override)
+        LOG.info('    %- 10s %s', var_name, override)
 
         datatype = value_with_override('datatype', override, invar)
 
@@ -182,6 +184,8 @@ def create_output_file(outfile, infile, inds):
     """
 
     LOG.info('Creating output file %s', outfile)
+    if os.path.exists(outfile):
+        logging.warning('Will overwrite existing file')
     outds = netCDF4.Dataset(outfile, mode='w', weakref=True)
 
     # Add some file meta-data
@@ -201,25 +205,24 @@ def create_output_file(outfile, infile, inds):
 
 
 def create_output_dimensions(inds, invars, outds):
+    LOG.info('Add output dimensions:')
     needdims = set()
     for invar in invars:
-        LOG.info('%s: %s', invar.name, invar.dimensions)
         for dimname in invar.dimensions:
             needdims.add(dimname)
 
-    LOG.info('needdims: %s', needdims)
     included_names = []
     excluded_names = []
     for dimname, indim in inds.dimensions.items():
         if dimname in needdims:
             size = None if indim.isunlimited() else indim.size
-            LOG.info('Add dimension %s (%s)', dimname, size or 'unlimited')
+            LOG.info('    %s (%s)', dimname, size or 'unlimited')
             outds.createDimension(dimname, size)
             included_names.append(dimname)
         else:
             excluded_names.append(dimname)
 
-    LOG.info('Included dimensions: %s', ', '.join(included_names))
+    #LOG.info('Included dimensions: %s', ', '.join(included_names))
     LOG.info('Excluded dimensions: %s', ', '.join(excluded_names))
 
 
@@ -270,14 +273,9 @@ def main():
     dates = work_wrf_dates(inds.variables['Times'])
     numdates = netCDF4.date2num(dates, 'hours since 0001-01-01 00:00:00.0', calendar='gregorian')
 
-    # Preprocess output files
-    LOG.info('Initialize output file %s', outfile)
-    if os.path.exists(outfile):
-        logging.warning('Will overwrite existing %s', outfile)
+    # Create empty output file
     outds = create_output_file(outfile, infile, inds)
     create_output_dimensions(inds, invars, outds)
-
-    LOG.info('Creating output variables')
     outvars = create_output_variables(outds, invars, config)
 
     # Set chunks
@@ -286,17 +284,16 @@ def main():
     indices = range(0, size_t)
     chunk_size_prefered = int(chunkSize_days * 24. * 3600. / dt)
     chunk_size = min(size_t, chunk_size_prefered)
-    LOG.info('Using chunk size: %s', chunk_size)
 
     # Start the loop through time
-    LOG.info('Starting to loop through data')
+    LOG.info('Copying data in chunks of %s time steps', chunk_size)
     for t in xrange(0, size_t, chunk_size):
         chunk = indices[t:t + chunk_size]
         LOG.info('Chunk: %s - %s', dates[chunk[0]], dates[chunk[-1]])
         if len(chunk) != chunk_size:
             LOG.info('Last chunk is shorter than previous chunks')
         for invar, outvar in zip(invars, outvars):
-            LOG.info('  Variable %s: %s',
+            LOG.info('    %- 10s %s',
                      invar.name,
                      ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
                      )
