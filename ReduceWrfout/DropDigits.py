@@ -150,24 +150,19 @@ def create_output_variables(outds, invars, config):
     return outvars
 
 
-def add_attr(outobj, inobj, name, value=None):
+def add_attr(obj, name, value):
     """
-    Copy all attributes name, name1, name2, etc from inobj to outobj and
-    add name or nameN to the end with the given new value. if value_new
-    is None then no new value is appended.
+    Find the first unset global attribute `name`, `name2`, etc. and set it to `value`
     """
     n = 0
     name_n = name
-    value_n = getattr(inobj, name_n, None)
+    value_n = getattr(obj, name_n, None)
     while value_n is not None:
-        LOG.info('Copy attribute %s = %s', name_n, value_n)
-        setattr(outobj, name_n, value_n)
         n += 1
         name_n = name + str(n)
         value_n = getattr(n, name_n, None)
-    if value is not None:
-        LOG.info('Add attribute %s = %s', name_n, value)
-        setattr(outobj, name_n, value)
+    LOG.info('    %s = %s', name_n, value)
+    setattr(obj, name_n, value)
 
 
 def create_output_file(outfile, infile, inds):
@@ -182,7 +177,6 @@ def create_output_file(outfile, infile, inds):
     Returns:
 
     """
-
     LOG.info('Creating output file %s', outfile)
     if os.path.exists(outfile):
         logging.warning('Will overwrite existing file')
@@ -190,14 +184,20 @@ def create_output_file(outfile, infile, inds):
 
     # Add some file meta-data
     LOG.info('Setting/updating global file attributes for output file')
+    LOG.info('Copy %s attributes', len(inds.ncattrs()))
+    for attr in inds.ncattrs():
+        v = getattr(inds, attr)
+        setattr(outds, attr, v)
+        LOG.debug('    %s = %s', attr, v)
+    LOG.info('Add attributes:')
+    add_attr(outds, 'history', 'Created with python at %s by %s' % (
+        datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S'),
+        os.getlogin()
+    ))
+    add_attr(outds, 'institution', 'Belgingur')
+    add_attr(outds, 'source', infile)
     outds.description = 'Reduced version of: %s' % (getattr(inds, 'description', infile))
-
-    strnow = datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S')
-
-    add_attr(outds, inds, 'TITLE')
-    add_attr(outds, inds, 'history', 'Created with python at %s by %s' % (strnow, os.getlogin()))
-    add_attr(outds, inds, 'institution', 'Belgingur')
-    add_attr(outds, inds, 'source', infile)
+    LOG.info('    description = %s', outds.description)
 
     # Flush to disk
     outds.sync()
@@ -222,7 +222,7 @@ def create_output_dimensions(inds, invars, outds):
         else:
             excluded_names.append(dimname)
 
-    #LOG.info('Included dimensions: %s', ', '.join(included_names))
+    # LOG.info('Included dimensions: %s', ', '.join(included_names))
     LOG.info('Excluded dimensions: %s', ', '.join(excluded_names))
 
 
