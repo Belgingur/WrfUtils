@@ -126,7 +126,7 @@ def override_field(outvar, name, override, invar, default=None):
 def create_output_variables(outds, invars, config):
     LOG.info('Create output variables with overrides:')
     overrides = config.get('overrides', {})
-    deflatelevel = config.get('deflatelevel', 0)
+    complevel = config.get('complevel', 0)
     outvars = []
     for invar in invars:
         var_name = invar.name
@@ -138,7 +138,7 @@ def create_output_variables(outds, invars, config):
         outvar = outds.createVariable(invar.name,
                                       datatype,
                                       dimensions=invar.dimensions,
-                                      zlib=deflatelevel > 0, complevel=deflatelevel,
+                                      zlib=complevel > 0, complevel=complevel,
                                       shuffle=True)
         # TODO: fillValue = False for speed?
         # TODO: individual compression levels per variable?
@@ -308,7 +308,7 @@ def main():
     insize = os.path.getsize(infile)
     outsize = os.path.getsize(outfile)
     outpercent = (100.0 * outsize / insize)
-    LOG.info('Size: %0.0f MB -> %0.0f MB, reduced to %.2f%%', insize / 1024.0, outsize / 1024.0, outpercent)
+    LOG.info('Size: %0.0f MB -> %0.0f MB, reduced to %.3g%%', insize / 1024.0, outsize / 1024.0, outpercent)
     LOG.info('Timing: %.1f (seconds) ', time.time() - start_time)
 
 
