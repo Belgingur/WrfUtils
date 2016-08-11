@@ -66,6 +66,9 @@ def build_overrides(config):
 
 
 def resolve_input_variables(inds, config):
+    """
+    Retrieves the variables from inds which we intend to copy to outds.
+    """
     default_include = config.get('default_include', True)
     includes = config.get('include', [])
     excludes = config.get('exclude', [])
@@ -85,9 +88,14 @@ def resolve_input_variables(inds, config):
             invars.append(invar)
         else:
             excluded_names.append(var_name)
-    LOG.info('Included variables: %s', ' '.join(included_names))
+    LOG.info('Included variables: %s', ', '.join(included_names))
     LOG.debug('Included variables: \n%s', '\n'.join(map(str, invars)))
-    LOG.info('Excluded variables: %s', ' '.join(excluded_names))
+    LOG.info('Excluded variables: %s', ', '.join(excluded_names))
+
+    if not default_include:
+        unseen_vars = [var_name for var_name in includes if var_name not in included_names]
+        if unseen_vars:
+            LOG.warn('Missing variables in include list: %s', ', '.join(unseen_vars))
 
     return invars
 
@@ -140,27 +148,27 @@ def create_output_variables(outds, invars, config):
     return outvars
 
 
-def execute(exe, *args):
+def add_attr(outobj, inobj, name, value=None):
     """
-    Executes external process and terminates with rc=-1 if it fails
-
-    Args:
-        string exe: main executable
-        tuple of string args: arguments to command
-
-    Returns:
-
+    Copy all attributes name, name1, name2, etc from inobj to outobj and
+    add name or nameN to the end with the given new value. if value_new
+    is None then no new value is appended.
     """
-    cmd = [exe] + list(args)
-    LOG.info(' '.join(cmd))
-    try:
-        __ = subprocess.check_call(cmd)
-    except:
-        LOG.error('Error running %s', exe)
-        sys.exit(-1)
+    n = 0
+    name_n = name
+    value_n = getattr(inobj, name_n, None)
+    while value_n is not None:
+        LOG.info('Copy attribute %s = %s', name_n, value_n)
+        setattr(outobj, name_n, value_n)
+        n += 1
+        name_n = name + str(n)
+        value_n = getattr(n, name_n, None)
+    if value is not None:
+        LOG.info('Add attribute %s = %s', name_n, value)
+        setattr(outobj, name_n, value)
 
 
-def setup_output_file(netcdf_in, netcdf_out, dates):
+def create_output_file(outfile, infile, inds):
     """
     Creeates an empty netcdf file with the same dimensions as an existing one.
 
@@ -173,58 +181,46 @@ def setup_output_file(netcdf_in, netcdf_out, dates):
 
     """
 
-    netcdf_tmp = netcdf_out + '_tmp'
-
-    # Run external utilities to create the initial, mostly empty target file
-    try:
-        LOG.info('Create temporary copy with HGT,XLAT,XLONG')
-        execute('ncks', '-O', '-4',
-                '-v', 'HGT,XLAT,XLONG',
-                '-d', 'Time,0',
-                netcdf_in, netcdf_tmp)
-
-        LOG.info('Average copied variables over time in to 2D')
-        execute('ncwa', '-O', '-4',
-                '-a', 'Time',
-                netcdf_tmp, netcdf_out)
-
-        LOG.info('Copy original Time vector')
-        execute('ncks', '-A', '-4',
-                '-v', 'Times',
-                netcdf_in, netcdf_out)
-
-    finally:
-        if os.path.isfile(netcdf_tmp):
-            os.remove(netcdf_tmp)
-
-    outds = netCDF4.Dataset(netcdf_out, mode='r+', weakref=True)
+    LOG.info('Creating output file %s', outfile)
+    outds = netCDF4.Dataset(outfile, mode='w', weakref=True)
 
     # Add some file meta-data
-    LOG.info('Setting/updating global file attributes for output file %s', netcdf_out)
-    outds.description2 = 'Copy of %s with reversed order of dimensions' % (netcdf_in)
-    outds.history2 = 'Created with python at %s by %s' % (
-        datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S'), os.getlogin())
-    outds.institution = 'Belgingur'
-    outds.source2 = '%s' % (netcdf_in)
+    LOG.info('Setting/updating global file attributes for output file')
+    outds.description = 'Reduced version of: %s' % (getattr(inds, 'description', infile))
 
-    # Adding more usable time vector
-    LOG.info('Creating new dimensions and variables in %s', netcdf_out)
-    times = outds.createVariable('times', 'f4', ('Time'))
-    times.units = 'hours since 0001-01-01 00:00:00.0'
-    times.calendar = 'gregorian'
-    times[:] = dates[:]
+    strnow = datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S')
 
-    # Adding nx/ny-dims
-    outds.createDimension('nx', size=outds.variables['XLAT'].shape[0])
-    outds.createDimension('ny', size=outds.variables['XLAT'].shape[1])
-    latitude = outds.createVariable('latitude', 'f4', ('nx', 'ny'))
-    latitude[:] = outds.variables['XLAT'][:]
-    longitude = outds.createVariable('longitude', 'f4', ('nx', 'ny'))
-    longitude[:] = outds.variables['XLONG'][:]
+    add_attr(outds, inds, 'TITLE')
+    add_attr(outds, inds, 'history', 'Created with python at %s by %s' % (strnow, os.getlogin()))
+    add_attr(outds, inds, 'institution', 'Belgingur')
+    add_attr(outds, inds, 'source', infile)
 
     # Flush to disk
     outds.sync()
-    outds.close()
+    return outds
+
+
+def create_output_dimensions(inds, invars, outds):
+    needdims = set()
+    for invar in invars:
+        LOG.info('%s: %s', invar.name, invar.dimensions)
+        for dimname in invar.dimensions:
+            needdims.add(dimname)
+
+    LOG.info('needdims: %s', needdims)
+    included_names = []
+    excluded_names = []
+    for dimname, indim in inds.dimensions.items():
+        if dimname in needdims:
+            size = None if indim.isunlimited() else indim.size
+            LOG.info('Add dimension %s (%s)', dimname, size or 'unlimited')
+            outds.createDimension(dimname, size)
+            included_names.append(dimname)
+        else:
+            excluded_names.append(dimname)
+
+    LOG.info('Included dimensions: %s', ', '.join(included_names))
+    LOG.info('Excluded dimensions: %s', ', '.join(excluded_names))
 
 
 def work_wrf_dates(times):
@@ -278,9 +274,8 @@ def main():
     LOG.info('Initialize output file %s', outfile)
     if os.path.exists(outfile):
         logging.warning('Will overwrite existing %s', outfile)
-    setup_output_file(infile, outfile, numdates)
-    outds = netCDF4.Dataset(outfile, 'r+', format='NETCDF4')
-    outds.set_fill_off()
+    outds = create_output_file(outfile, infile, inds)
+    create_output_dimensions(inds, invars, outds)
 
     LOG.info('Creating output variables')
     outvars = create_output_variables(outds, invars, config)
@@ -297,12 +292,15 @@ def main():
     LOG.info('Starting to loop through data')
     for t in xrange(0, size_t, chunk_size):
         chunk = indices[t:t + chunk_size]
-        LOG.info('Working chunk: %s - %s', dates[chunk[0]], dates[chunk[-1]])
+        LOG.info('Chunk: %s - %s', dates[chunk[0]], dates[chunk[-1]])
         if len(chunk) != chunk_size:
             LOG.info('Last chunk is shorter than previous chunks')
         for invar, outvar in zip(invars, outvars):
-            LOG.info('  Working variable %s', invar.name)
-            outvar[:, :, chunk] = outvar[:, :, chunk]
+            LOG.info('  Variable %s: %s',
+                     invar.name,
+                     ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
+                     )
+            outvar[:, :, chunk] = invar[:, :, chunk]
         outds.sync()
 
     # Close our datasets
