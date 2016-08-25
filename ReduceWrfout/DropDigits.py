@@ -6,14 +6,12 @@ Shrink wrfout files by reducing the number of digits for variables.
 """
 
 import os
-import sys
 
 import netCDF4
 import numpy
 import logging
 import logging.config
 import time
-import subprocess
 import datetime
 import argparse
 
@@ -41,7 +39,7 @@ def configure():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-c', '--config', default='DropDigits.yml',
                         help='Configuration to read (def: DropDigits.yml)')
-    parser.add_argument('infile',
+    parser.add_argument('infiles', nargs="+",
                         help='input file from wrf to to process')
     args = parser.parse_args()
 
@@ -167,15 +165,12 @@ def add_attr(obj, name, value):
 
 def create_output_file(outfile, infile, inds):
     """
-    Creeates an empty netcdf file with the same dimensions as an existing one.
-
+    Creates a new dataset with the same attributes as an existing one plus additional
+    attributes to trace the file's evolution.
     Args:
-        string netcdf_in: The netcdf whose dimensions to copy
-        string netcdf_out: The name of a netcdf file to create
-        dates:
-
-    Returns:
-
+        outfile (string):
+        infile (string):
+        inds (netCDF4.Dataset):
     """
     LOG.info('Creating output file %s', outfile)
     if os.path.exists(outfile):
@@ -244,73 +239,82 @@ def work_wrf_dates(times):
     return dates
 
 
-def calc_wind_dir(ut, vt, sina, cosa):
-    # Calculate true wind direction
-    u_true = cosa * ut + sina * vt
-    v_true = -sina * ut + cosa * vt
-    wdir = numpy.mod(270. - (numpy.arctan2(v_true, u_true) * 180 / 3.14159), 360.)
-    return wdir
-
-
 ############################################################
 # The main routine!
 
 def main():
-    start_time = time.time()
     setup_logging()
 
     args, config = configure()
     build_overrides(config)
-    infile = args.infile
-    outfile = infile + '_reduced.nc4'
+    total_start_time = time.time()
+    total_insize = total_outsize = 0
+    LOG.info('')
+    for infile in args.infiles:
+        start_time = time.time()
 
-    # Open input datasets
-    LOG.info('Opening input dataset %s', infile)
-    inds = netCDF4.Dataset(infile, 'r')
-    invars = resolve_input_variables(inds, config)
+        outfile = infile + '_reduced.nc4'
 
-    # Convert time vector
-    dates = work_wrf_dates(inds.variables['Times'])
-    numdates = netCDF4.date2num(dates, 'hours since 0001-01-01 00:00:00.0', calendar='gregorian')
+        # Open input datasets
+        LOG.info('Opening input dataset %s', infile)
+        inds = netCDF4.Dataset(infile, 'r')
+        invars = resolve_input_variables(inds, config)
 
-    # Create empty output file
-    outds = create_output_file(outfile, infile, inds)
-    create_output_dimensions(inds, invars, outds)
-    outvars = create_output_variables(outds, invars, config)
+        # Convert time vector
+        dates = work_wrf_dates(inds.variables['Times'])
 
-    # Set chunks
-    dt = (dates[1] - dates[0]).seconds
-    size_t = len(dates)
-    indices = range(0, size_t)
-    chunk_size_prefered = int(chunkSize_days * 24. * 3600. / dt)
-    chunk_size = min(size_t, chunk_size_prefered)
+        # Create empty output file
+        outds = create_output_file(outfile, infile, inds)
+        create_output_dimensions(inds, invars, outds)
+        outvars = create_output_variables(outds, invars, config)
 
-    # Start the loop through time
-    LOG.info('Copying data in chunks of %s time steps', chunk_size)
-    for t in xrange(0, size_t, chunk_size):
-        chunk = indices[t:t + chunk_size]
-        LOG.info('Chunk: %s - %s', dates[chunk[0]], dates[chunk[-1]])
-        if len(chunk) != chunk_size:
-            LOG.info('Last chunk is shorter than previous chunks')
-        for invar, outvar in zip(invars, outvars):
-            LOG.info('    %- 10s %s',
-                     invar.name,
-                     ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
-                     )
-            outvar[chunk, :, :] = invar[chunk, :, :]
-        outds.sync()
+        # Set chunks
+        dt = (dates[1] - dates[0]).seconds
+        size_t = len(dates)
+        indices = range(0, size_t)
+        chunk_size_prefered = int(chunkSize_days * 24. * 3600. / dt)
+        chunk_size = min(size_t, chunk_size_prefered)
 
-    # Close our datasets
-    inds.close()
-    outds.close()
+        # Start the loop through time
+        LOG.info('Copying data in chunks of %s time steps', chunk_size)
+        for t in xrange(0, size_t, chunk_size):
+            chunk = indices[t:t + chunk_size]
+            LOG.info('Chunk: %s - %s', dates[chunk[0]], dates[chunk[-1]])
+            if len(chunk) != chunk_size:
+                LOG.info('Last chunk is shorter than previous chunks')
+            for invar, outvar in zip(invars, outvars):
+                LOG.info('    %- 10s %s',
+                         invar.name,
+                         ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
+                         )
+                outvar[chunk, :, :] = invar[chunk, :, :]
+            outds.sync()
 
-    # Print space saved and time used
-    insize = os.path.getsize(infile)
-    outsize = os.path.getsize(outfile)
-    outpercent = (100.0 * outsize / insize)
-    LOG.info('Size: %0.0f MB -> %0.0f MB, reduced to %.3g%%', insize / 1024.0, outsize / 1024.0, outpercent)
-    LOG.info('Timing: %.1f (seconds) ', time.time() - start_time)
+        # Close our datasets
+        inds.close()
+        outds.close()
 
+        # Print space saved and time used
+        insize = os.path.getsize(infile)
+        outsize = os.path.getsize(outfile)
+        total_insize += insize
+        total_outsize += outsize
+        outpercent = (100.0 * outsize / insize)
+        LOG.info('Size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:0.1f} s'.format(
+            insize / 1024.0,
+            outsize / 1024.0,
+            outpercent,
+            time.time() - start_time
+        ))
+        LOG.info('')
+
+    total_outpercent = (100.0 * total_outsize / total_insize)
+    LOG.info('Total size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:.1f} s'.format(
+        total_insize / 1024.0,
+        total_outsize / 1024.0,
+        total_outpercent,
+        time.time() - total_start_time,
+    ))
 
 if __name__ == '__main__':
     main()
