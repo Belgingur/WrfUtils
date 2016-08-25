@@ -297,7 +297,7 @@ def main():
                      invar.name,
                      ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
                      )
-            outvar[:, :, chunk] = invar[:, :, chunk]
+            outvar[chunk, :, :] = invar[chunk, :, :]
         outds.sync()
 
     # Close our datasets
