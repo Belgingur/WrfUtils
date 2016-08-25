@@ -1,4 +1,9 @@
-conda create --yes --name WrfUtils python=2.7
+#! /bin/bash
+
+# Die on all errors by default
+set -e
+
+conda create --yes --name WrfUtils python=2.7 || echo "It's OK"
 source activate WrfUtils
 
 conda install --yes \

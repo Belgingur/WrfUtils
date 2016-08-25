@@ -1,7 +1,7 @@
 
 # Whether to include variables by defualt.
 # TODO: Setting this to True currently fails unless a long list of variables is excluded
-default_include: True
+default_include: False
 
 # If default_include is False, include only these variables a
 include:
@@ -41,6 +41,7 @@ overrides:
     scale_factor: 0.01
     datatype: u2
 
+  # T2 is shifted from Kelvin to Celsius
   T2:
     least_significant_digit: 2
     scale_factor: 0.01
