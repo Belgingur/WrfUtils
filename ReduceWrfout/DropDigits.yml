@@ -1,7 +1,7 @@
 
 # Whether to include variables by defualt.
 # TODO: Setting this to True currently fails unless a long list of variables is excluded
-default_include: False
+default_include: True
 
 # If default_include is False, include only these variables a
 include:
@@ -27,31 +27,68 @@ exclude:
  - SEED2
 
 
-# Override attributes in copied variables. Puttings e.g. '@U' instead of a
+# Override attributes in copied variables.
+# Putting e.g. '@u16_1' instead of a dict uses the values given for u16_1
+# The default key decides how we handle variables with no specific overrides
 overrides:
-  # 16-bit unsigned fixed point with 1 digit
+
+  # -32767 .. 32768
+  s16_:
+    datatype: i2
+
+  # -3276.7 .. 3276.8
+  s16_1:
+    scale_factor: 0.1
+    datatype: i2
+
+  # -327.67 .. 327.68
+  s16_2:
+    scale_factor: 0.01
+    datatype: i2
+
+  # 00 .. 655350 by steps of 10
+  u16__1:
+    scale_factor: 10
+    datatype: u2
+
+
+  # 0 .. 65535
+  u16_0:
+    datatype: u2
+
+  # 0.0 .. 6553.5
   u16_1:
-    least_significant_digit: 1
     scale_factor: 0.1
     datatype: u2
 
-  # 16-bit unsigned fixed point with 2 digits
+  # 0.00 .. 655.35
   u16_2:
-    least_significant_digit: 2
     scale_factor: 0.01
     datatype: u2
 
-  # T2 is shifted from Kelvin to Celsius
-  T2:
-    least_significant_digit: 2
-    scale_factor: 0.01
-    add_offset: 273
-    datatype: i2
+  #T2:
+  #  scale_factor: 0.01
+  #  add_offset: 273
+  #  datatype: u2
 
-  U10: '@u16_2'
-  V10: '@u16_2'
-  RAINNC: '@u16_1'
-  SWDOWN: '@u16_1'
+  MSLP:
+      add_offset: -100000
+      datatype: i2
+
+  default: '@s16_2'
+
+# Valid datatype specifiers include:
+#   'f4' (32-bit floating point)
+#   'f8' (64-bit floating point)
+#   'i1' (8-bit signed integer)
+#   'i2' (16-bit signed integer)
+#   'i4' (32-bit signed integer)
+#   'i8' (64-bit singed integer)
+#   'u1' (8-bit unsigned integer)
+#   'u2' (16-bit unsigned integer)
+#   'u4' (32-bit unsigned integer)
+#   'u8' (64-bit unsigned integer)
+#   'S1' (single-character string).
 
 # Compression level for output file. 0 to disable, values 1-9 are passed to zlib
 complevel: 6

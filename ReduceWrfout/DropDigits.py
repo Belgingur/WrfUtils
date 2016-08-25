@@ -6,9 +6,10 @@ Shrink wrfout files by reducing the number of digits for variables.
 """
 
 import os
+import sys
 
 import netCDF4
-import numpy
+import numpy as np
 import logging
 import logging.config
 import time
@@ -16,6 +17,7 @@ import datetime
 import argparse
 
 import yaml
+from math import log10, ceil
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
@@ -26,6 +28,62 @@ __EMPTY__ = '__EMPTY__'
 # Parameters/constants for input data
 
 chunkSize_days = 10
+
+TYPE_RANGE = dict(
+    u1=(0, 2 ** 8 - 1),
+    u2=(0, 2 ** 16 - 1),
+    u4=(0, 2 ** 32 - 1),
+    u8=(0, 2 ** 64 - 1),
+
+    i1=(-2 ** 7, 2 ** 7 - 1),
+    i2=(-2 ** 15, 2 ** 15 - 1),
+    i4=(-2 ** 31, 2 ** 31 - 1),
+    i8=(-2 ** 63, 2 ** 63 - 1),
+
+    f4=(-3.4e38, +3.4e38),
+    f8=(-1.79e308, +1.79e308)
+)
+
+
+def range_for_override(override):
+    """
+    Given an override array which specifies a datatype and optionally a scale_factor,
+    return the min/max values the corresponding variable can hold.
+    """
+    scale = override.get('scale_factor', 1)
+    offset = override.get('add_offset', 0)
+    datatype = override.get('datatype')
+    if datatype:
+        return range[0] * scale - offset, \
+               range[1] * scale - offset
+
+
+class Override(object):
+    def __init__(self, datatype=None, scale_factor=1, add_offset=0, least_significant_digit=None):
+        super(Override, self).__init__()
+        self.least_significant_digit = least_significant_digit
+        self.add_offset = add_offset
+        self.scale_factor = scale_factor
+        self.datatype = datatype
+
+        range = TYPE_RANGE[datatype]
+        if range:
+            self.range_min = range[0] * self.scale_factor - self.add_offset
+            self.range_max = range[1] * self.scale_factor - self.add_offset
+
+        # Calculate least significant digit for int/fixed point variables
+        if self.least_significant_digit is None and self.datatype and self.datatype[0] in ('u', 'i'):
+            self.least_significant_digit = ceil(-log10(self.scale_factor))
+
+    def __repr__(self):
+        s = self.datatype
+        if self.scale_factor != 1:
+            s += '*{:g}'.format(self.scale_factor)
+        if self.add_offset != 0:
+            s += '{:s}{:g}'.format('+' if self.add_offset >= 0 else '', self.add_offset)
+        # if self.range_min is not None:
+        #    s += ' : {:g} .. {:g}'.format(self.range_min, self.range_max)
+        return s
 
 
 def setup_logging(config_path='./logging.yml'):
@@ -56,11 +114,17 @@ def build_overrides(config):
     Iterate through config['overrides'] and make each entry into a valid Override object with defaults taken from
     override_defaults
     """
-    overrides = config['overrides']
-    for var_name, value in overrides.items():
-        if isinstance(value, basestring) and value[0] == '@':
-            value = overrides[value[1:]]
-        overrides[var_name] = value
+    specs = config['overrides']
+    overrides = {}
+    for var_name, spec in specs.items():
+        try:
+            if isinstance(spec, basestring) and spec[0] == '@':
+                spec = specs[spec[1:]]
+            overrides[var_name] = Override(**spec)
+        except:
+            LOG.error('Failed to read override for %s', var_name)
+            raise
+    return overrides
 
 
 def resolve_input_variables(inds, config):
@@ -100,7 +164,7 @@ def resolve_input_variables(inds, config):
 
 
 def value_with_override(name, override, invar, default=None):
-    value = override.get(name)
+    value = getattr(override, name, None)
     if value is None:
         value = getattr(invar, name, None)
     if value is None:
@@ -121,15 +185,13 @@ def override_field(outvar, name, override, invar, default=None):
         setattr(outvar, name, value)
 
 
-def create_output_variables(outds, invars, config):
+def create_output_variables(outds, invars, overrides, complevel):
     LOG.info('Create output variables with overrides:')
-    overrides = config.get('overrides', {})
-    complevel = config.get('complevel', 0)
     outvars = []
     for invar in invars:
         var_name = invar.name
-        override = overrides.get(var_name, {})
-        LOG.info('    %- 10s %s', var_name, override)
+        override = overrides.get(var_name, None) or overrides.get('default')
+        LOG.info('    %- 10s %- 10s %g..%g', var_name, override, override.range_min, override.range_max)
 
         datatype = value_with_override('datatype', override, invar)
 
@@ -138,8 +200,6 @@ def create_output_variables(outds, invars, config):
                                       dimensions=invar.dimensions,
                                       zlib=complevel > 0, complevel=complevel,
                                       shuffle=True)
-        # TODO: fillValue = False for speed?
-        # TODO: individual compression levels per variable?
         for field in ('description', 'least_significant_digit', 'scale_factor', 'add_offset',):
             override_field(outvar, field, override, invar)
         outvars.append(outvar)
@@ -235,7 +295,7 @@ def work_wrf_dates(times):
     dates = []
     for t in times[:]:
         dates.append(datetime.datetime.strptime(t.tostring(), '%Y-%m-%d_%H:%M:%S'))
-    dates = numpy.array(dates)
+    dates = np.array(dates)
     return dates
 
 
@@ -246,13 +306,14 @@ def main():
     setup_logging()
 
     args, config = configure()
-    build_overrides(config)
+    overrides = build_overrides(config)
     total_start_time = time.time()
+    total_errors = 0
     total_insize = total_outsize = 0
     LOG.info('')
     for infile in args.infiles:
         start_time = time.time()
-
+        errors = 0
         outfile = infile + '_reduced.nc4'
 
         # Open input datasets
@@ -266,7 +327,7 @@ def main():
         # Create empty output file
         outds = create_output_file(outfile, infile, inds)
         create_output_dimensions(inds, invars, outds)
-        outvars = create_output_variables(outds, invars, config)
+        outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0))
 
         # Set chunks
         dt = (dates[1] - dates[0]).seconds
@@ -279,15 +340,26 @@ def main():
         LOG.info('Copying data in chunks of %s time steps', chunk_size)
         for t in xrange(0, size_t, chunk_size):
             chunk = indices[t:t + chunk_size]
-            LOG.info('Chunk: %s - %s', dates[chunk[0]], dates[chunk[-1]])
+            LOG.info('Chunk[%s..%s]: %s - %s', chunk[0], chunk[-1], dates[chunk[0]], dates[chunk[-1]])
+            LOG.info('    Variable          Min        Max  Dimensions')
             if len(chunk) != chunk_size:
                 LOG.info('Last chunk is shorter than previous chunks')
             for invar, outvar in zip(invars, outvars):
-                LOG.info('    %- 10s %s',
-                         invar.name,
-                         ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
-                         )
-                outvar[chunk, :, :] = invar[chunk, :, :]
+                inchunk = invar[chunk, :, :]
+                chunk_min, chunk_max = np.min(inchunk), np.max(inchunk)
+                dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
+                LOG.info('    %- 10s % 10.2f % 10.2f  %s', invar.name, chunk_min, chunk_max, dim_str)
+                override = overrides.get(invar.name) or overrides.get('default')
+                if override.range_min is not None and override.range_max is not None:
+                    if chunk_min < override.range_min - override.scale_factor or chunk_max > override.range_max + override.scale_factor:
+                        LOG.error(
+                            '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
+                            invar.name, chunk[0], chunk[-1],
+                            chunk_min, chunk_max,
+                            override.range_min, override.range_max,
+                            override)
+                        errors += 1
+                outvar[chunk, :, :] = inchunk
             outds.sync()
 
         # Close our datasets
@@ -297,6 +369,7 @@ def main():
         # Print space saved and time used
         insize = os.path.getsize(infile)
         outsize = os.path.getsize(outfile)
+        total_errors += errors
         total_insize += insize
         total_outsize += outsize
         outpercent = (100.0 * outsize / insize)
@@ -306,15 +379,22 @@ def main():
             outpercent,
             time.time() - start_time
         ))
+        if errors:
+            LOG.error('%d errors in file', errors)
+            sys.exit(1)
         LOG.info('')
 
-    total_outpercent = (100.0 * total_outsize / total_insize)
-    LOG.info('Total size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:.1f} s'.format(
-        total_insize / 1024.0,
-        total_outsize / 1024.0,
-        total_outpercent,
-        time.time() - total_start_time,
-    ))
+    if len(args.infiles) > 1:
+        total_outpercent = (100.0 * total_outsize / total_insize)
+        LOG.info('Total size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:.1f} s'.format(
+            total_insize / 1024.0,
+            total_outsize / 1024.0,
+            total_outpercent,
+            time.time() - total_start_time,
+        ))
+        if total_errors:
+            LOG.error('%d errors in total', total_errors)
+
 
 if __name__ == '__main__':
     main()
