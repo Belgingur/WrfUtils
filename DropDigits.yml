@@ -1,7 +1,13 @@
 
 # Whether to include variables by defualt.
-# TODO: Setting this to True currently fails unless a long list of variables is excluded
 default_include: True
+
+# Pattern for output filename suitable for python's format function.
+# Available variables:
+# - basename The name of the input file without extension or path
+# - ext      The file extension including dot (ex: '.nc4') (ex: '')
+# - path     The path to the input file (ex: '../runtime') (ex: '.')
+output_filename: '{path}/{basename}_reduced.nc4'
 
 # If default_include is False, include only these variables a
 include:
@@ -111,6 +117,10 @@ overrides:
   QNRAIN       : { 'datatype':'u2', 'scale_factor':100       } #   -2.20299e-06 .. 107022.0
   QNGRAUPEL    : { 'datatype':'u2', 'scale_factor':10        } #   -9.16737e-11 .. 8827.42
   UST          : { 'datatype':'u2', 'scale_factor':0.0001    } #     0.00128093 .. 1.28317
+
+  times        : {}  #    1.76684e+07 .. 1.76685e+07
+  ws           : {}  #    0 .. 100
+  wd           : {}  #    0 .. 260
 
 # Compression level for output file. 0 to disable, values 1-9 are passed to zlib
 complevel: 6

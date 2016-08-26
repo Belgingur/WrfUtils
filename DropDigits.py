@@ -26,6 +26,12 @@ LOG = logging.getLogger('belgingur.drop_digits')
 __EMPTY__ = '__EMPTY__'
 """ Magic empty value distinct from None. """
 
+# Make basestring available in python3.5 so we can test if isinstance(var, basestring)
+try:
+    basestring
+except NameError:
+    basestring = str
+
 #############################################################
 # Parameters/constants for input data
 
@@ -219,7 +225,7 @@ def add_attr(obj, name, value):
     setattr(obj, name_n, value)
 
 
-def create_output_file(outfile, infile, inds):
+def create_output_file(outfile_pattern, infile, inds):
     """
     Creates a new dataset with the same attributes as an existing one plus additional
     attributes to trace the file's evolution. Copies the Times variable over verbatim
@@ -230,6 +236,14 @@ def create_output_file(outfile, infile, inds):
         infile (string):
         inds (netCDF4.Dataset):
     """
+    inpath, inbase = os.path.split(infile)
+    inbase, inext = os.path.splitext(inbase)
+    outfile = outfile_pattern.format(
+        path=inpath or '.',
+        basename=inbase,
+        ext=inext,
+    )
+
     LOG.info('Creating output file %s', outfile)
     if os.path.exists(outfile):
         logging.warning('Will overwrite existing file')
@@ -254,7 +268,7 @@ def create_output_file(outfile, infile, inds):
 
     # Flush to disk
     outds.sync()
-    return outds
+    return outfile, outds
 
 
 def create_output_dimensions(inds, invars, outds):
@@ -292,7 +306,10 @@ def work_wrf_dates(times):
     LOG.info('Working dates %s to %s', times[0].tostring(), times[-1].tostring())
     dates = []
     for t in times[:]:
-        dates.append(datetime.datetime.strptime(t.tostring(), '%Y-%m-%d_%H:%M:%S'))
+        tt = t.tostring()
+        if sys.version_info >= (3, 0):
+            tt = tt.decode()
+        dates.append(datetime.datetime.strptime(tt, '%Y-%m-%d_%H:%M:%S'))
     dates = np.array(dates)
     return dates
 
@@ -305,6 +322,7 @@ def main():
 
     args, config = configure()
     overrides = build_overrides(config)
+    outfile_pattern = config.get('output_filename', './{filename}_reduced.nc4')
     total_start_time = time.time()
     total_errors = 0
     total_insize = total_outsize = 0
@@ -312,7 +330,6 @@ def main():
     for infile in args.infiles:
         start_time = time.time()
         errors = 0
-        outfile = infile + '_reduced.nc4'
 
         # Open input datasets
         LOG.info('Opening input dataset %s', infile)
@@ -323,7 +340,7 @@ def main():
         dates = work_wrf_dates(inds.variables['Times'])
 
         # Create empty output file
-        outds = create_output_file(outfile, infile, inds)
+        outfile, outds = create_output_file(outfile_pattern, infile, inds)
         create_output_dimensions(inds, invars, outds)
         outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0))
 
@@ -336,7 +353,7 @@ def main():
 
         # Start the loop through time
         LOG.info('Copying data in chunks of %s time steps', chunk_size)
-        for t in xrange(0, size_t, chunk_size):
+        for t in range(0, size_t, chunk_size):
             chunk = indices[t:t + chunk_size]
             LOG.info('Chunk[%s..%s]: %s - %s', chunk[0], chunk[-1], dates[chunk[0]], dates[chunk[-1]])
             LOG.info('    Variable            Min          Max  Dimensions')

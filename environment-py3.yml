@@ -1,0 +1,11 @@
+# Conda environment description:
+# * Install miniconda
+# * Run `conda env create -f environment.yml`
+# * Run `. activate WrfUtils`
+
+name: WrfUtils3
+dependencies:
+- numpy=1.11.*
+- netcdf4=1.2.*
+- python=3.5.*
+- pyyaml=3.*
