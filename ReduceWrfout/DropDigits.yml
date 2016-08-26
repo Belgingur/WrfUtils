@@ -13,18 +13,7 @@ include:
 
 # If default_include is True, include all but these variables.
 # The current list was enough to process a single Africa file, but we need more logic here.
-exclude:
- - Times
- - ZNU
- - ZNW
- - ZS
- - ZETATOP
- - ITIMESTEP
- - XTIME
- - P_TOP
- - SAVE_TOPO_FROM_REAL
- - SEED1
- - SEED2
+exclude: []
 
 
 # Override attributes in copied variables.
@@ -49,6 +38,9 @@ overrides:
   default:
     scale_factor: 0.1
     datatype: i2
+
+  # Don't mess with Times
+  Times: {}
 
   #VARIABLE      OVERRIDE                                      #          OBSERVED RANGE
   XLAT         : { 'datatype':'i2', 'scale_factor':0.01      } #       -36.1164 .. 68.56

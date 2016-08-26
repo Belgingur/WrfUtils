@@ -45,10 +45,11 @@ TYPE_RANGE = dict(
     f4=(-3.4e38, +3.4e38),
     f8=(-1.79e308, +1.79e308)
 )
+TYPE_RANGE[None] = None
 
 
 class Override(object):
-    def __init__(self, datatype=None, scale_factor=1, add_offset=0, least_significant_digit=None):
+    def __init__(self, datatype=None, scale_factor=None, add_offset=None, least_significant_digit=None):
         super(Override, self).__init__()
         self.least_significant_digit = least_significant_digit
         self.add_offset = add_offset
@@ -57,18 +58,24 @@ class Override(object):
 
         range = TYPE_RANGE[datatype]
         if range:
-            self.range_min = range[0] * self.scale_factor - self.add_offset
-            self.range_max = range[1] * self.scale_factor - self.add_offset
+            sf = 1 if scale_factor is None else scale_factor
+            ao = 0 if add_offset is None else add_offset
+            self.range_min = range[0] * sf - ao
+            self.range_max = range[1] * sf - ao
+        else:
+            self.range_min = None
+            self.range_max = None
 
         # Calculate least significant digit for int/fixed point variables
-        if self.least_significant_digit is None and self.datatype and self.datatype[0] in ('u', 'i'):
-            self.least_significant_digit = ceil(-log10(self.scale_factor))
+        if self.least_significant_digit is None:
+            if self.datatype and self.datatype[0] in ('u', 'i') and self.scale_factor is not None:
+                self.least_significant_digit = ceil(-log10(self.scale_factor))
 
     def __repr__(self):
-        s = self.datatype
-        if self.scale_factor != 1:
+        s = self.datatype or 'unchanged'
+        if self.scale_factor != 1 and self.scale_factor is not None:
             s += '*{:g}'.format(self.scale_factor)
-        if self.add_offset != 0:
+        if self.add_offset != 0 and self.add_offset is not None:
             s += '{:s}{:g}'.format('+' if self.add_offset >= 0 else '', self.add_offset)
         # if self.range_min is not None:
         #    s += ' : {:g} .. {:g}'.format(self.range_min, self.range_max)
@@ -140,7 +147,7 @@ def resolve_input_variables(inds, config):
         else:
             excluded_names.append(var_name)
     LOG.debug('Included variables: \n%s', '\n'.join(map(str, invars)))
-    LOG.info('Excluded variables: %s', ', '.join(excluded_names))
+    LOG.info('Excluded variables: %s', ', '.join(excluded_names) or '<none>')
 
     if default_include:
         LOG.info('Included variables: %s', ', '.join(included_names))
@@ -180,7 +187,7 @@ def create_output_variables(outds, invars, overrides, complevel):
     for invar in invars:
         var_name = invar.name
         override = overrides.get(var_name, None) or overrides.get('default')
-        LOG.info('    %- 10s %- 10s %g..%g', var_name, override, override.range_min, override.range_max)
+        LOG.info('    %- 10s %- 10s %s..%s', var_name, override, override.range_min, override.range_max)
 
         datatype = value_with_override('datatype', override, invar)
 
@@ -215,7 +222,9 @@ def add_attr(obj, name, value):
 def create_output_file(outfile, infile, inds):
     """
     Creates a new dataset with the same attributes as an existing one plus additional
-    attributes to trace the file's evolution.
+    attributes to trace the file's evolution. Copies the Times variable over verbatim
+    if it exists.
+
     Args:
         outfile (string):
         infile (string):
@@ -267,7 +276,7 @@ def create_output_dimensions(inds, invars, outds):
             excluded_names.append(dimname)
 
     # LOG.info('Included dimensions: %s', ', '.join(included_names))
-    LOG.info('Excluded dimensions: %s', ', '.join(excluded_names))
+    LOG.info('Excluded dimensions: %s', ', '.join(excluded_names) or '<none>')
 
 
 def work_wrf_dates(times):
@@ -334,21 +343,28 @@ def main():
             if len(chunk) != chunk_size:
                 LOG.info('Last chunk is shorter than previous chunks')
             for invar, outvar in zip(invars, outvars):
-                inchunk = invar[chunk, :, :]
-                chunk_min, chunk_max = np.min(inchunk), np.max(inchunk)
+                inchunk = invar[chunk]
                 dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
-                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format( invar.name, chunk_min, chunk_max, dim_str))
                 override = overrides.get(invar.name) or overrides.get('default')
-                if override.range_min is not None and override.range_max is not None:
-                    if chunk_min < override.range_min - override.scale_factor or chunk_max > override.range_max + override.scale_factor:
-                        LOG.error(
-                            '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
-                            invar.name, chunk[0], chunk[-1],
-                            chunk_min, chunk_max,
-                            override.range_min, override.range_max,
-                            override)
-                        errors += 1
-                outvar[chunk, :, :] = inchunk
+
+                if invar.datatype == '|S1':
+                    # Text data
+                    LOG.info('    {:10}          N/A          N/A  {}'.format(invar.name, dim_str))
+                else:
+                    # Numeric data
+                    chunk_min, chunk_max = np.min(inchunk), np.max(inchunk)
+                    LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(invar.name, chunk_min, chunk_max, dim_str))
+                    if override.range_min is not None and override.range_max is not None:
+                        if chunk_min < override.range_min - override.scale_factor or chunk_max > override.range_max + override.scale_factor:
+                            LOG.error(
+                                '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
+                                invar.name, chunk[0], chunk[-1],
+                                chunk_min, chunk_max,
+                                override.range_min, override.range_max,
+                                override)
+                            errors += 1
+
+                outvar[chunk] = inchunk
             outds.sync()
 
         # Close our datasets
