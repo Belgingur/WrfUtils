@@ -28,67 +28,97 @@ exclude:
 
 
 # Override attributes in copied variables.
-# Putting e.g. '@u16_1' instead of a dict uses the values given for u16_1
+# Putting '@foo' instead of a dict uses the values given for u16_1
 # The default key decides how we handle variables with no specific overrides
 overrides:
 
-  # -32767 .. 32768
-  s16_:
-    datatype: i2
+  # Valid datatype specifiers include:
+  #   'f4' (32-bit floating point)
+  #   'f8' (64-bit floating point)
+  #   'i1' (8-bit signed integer)
+  #   'i2' (16-bit signed integer)
+  #   'i4' (32-bit signed integer)
+  #   'i8' (64-bit singed integer)
+  #   'u1' (8-bit unsigned integer)
+  #   'u2' (16-bit unsigned integer)
+  #   'u4' (32-bit unsigned integer)
+  #   'u8' (64-bit unsigned integer)
+  #   'S1' (single-character string).
 
-  # -3276.7 .. 3276.8
-  s16_1:
+  # -3,2767.0 .. 3,276.8
+  default:
     scale_factor: 0.1
     datatype: i2
 
-  # -327.67 .. 327.68
-  s16_2:
-    scale_factor: 0.01
-    datatype: i2
-
-  # 00 .. 655350 by steps of 10
-  u16__1:
-    scale_factor: 10
-    datatype: u2
-
-
-  # 0 .. 65535
-  u16_0:
-    datatype: u2
-
-  # 0.0 .. 6553.5
-  u16_1:
-    scale_factor: 0.1
-    datatype: u2
-
-  # 0.00 .. 655.35
-  u16_2:
-    scale_factor: 0.01
-    datatype: u2
-
-  #T2:
-  #  scale_factor: 0.01
-  #  add_offset: 273
-  #  datatype: u2
-
-  MSLP:
-      add_offset: -100000
-      datatype: i2
-
-  default: '@s16_2'
-
-# Valid datatype specifiers include:
-#   'f4' (32-bit floating point)
-#   'f8' (64-bit floating point)
-#   'i1' (8-bit signed integer)
-#   'i2' (16-bit signed integer)
-#   'i4' (32-bit signed integer)
-#   'i8' (64-bit singed integer)
-#   'u1' (8-bit unsigned integer)
-#   'u2' (16-bit unsigned integer)
-#   'u4' (32-bit unsigned integer)
-#   'u8' (64-bit unsigned integer)
-#   'S1' (single-character string).
+  #VARIABLE      OVERRIDE                                      #          OBSERVED RANGE
+  XLAT         : { 'datatype':'i2', 'scale_factor':0.01      } #       -36.1164 .. 68.56
+  XLONG        : { 'datatype':'i2', 'scale_factor':0.01      } #       -73.4131 .. 61.0041
+  U            : { 'datatype':'i2', 'scale_factor':0.01      } #       -32.0709 .. 81.145
+  V            : { 'datatype':'i2', 'scale_factor':0.01      } #       -56.2487 .. 56.1709
+  W            : { 'datatype':'i2', 'scale_factor':0.001     } #       -6.31944 .. 12.7611
+  PH           : { 'datatype':'i2', 'scale_factor':10        } #       -3641.89 .. 11704.8
+  PHB          : { 'datatype':'i2', 'scale_factor':100       } #        -965.57 .. 195241.0
+  T            : { 'datatype':'i2', 'scale_factor':0.01      } #       -27.0829 .. 231.479
+  TKE          : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
+  P            : { 'datatype':'i2', 'scale_factor':10        } #       -1800.02 .. 3856.77
+  ALT          : { 'datatype':'u2', 'scale_factor':0.001     } #       0.775187 .. 12.8481
+  PB           : { 'datatype':'u2', 'scale_factor':100       } #        5049.49 .. 100973.0
+  Q2           : { 'datatype':'u2', 'scale_factor':0.000001  } #     2.5851e-05 .. 0.0308244
+  T2           : { 'datatype':'u2', 'scale_factor':0.01      } #        250.647 .. 320.141
+  PSFC         : { 'datatype':'u2', 'scale_factor':100       } #        51525.2 .. 103867.0
+  U10          : { 'datatype':'i2', 'scale_factor':0.001     } #       -23.2254 .. 22.1899
+  V10          : { 'datatype':'i2', 'scale_factor':0.001     } #       -31.7249 .. 18.4191
+  ITIMESTEP    : { 'datatype':'u2', 'scale_factor':10        } #              0 .. 7883
+  RELHUM       : { 'datatype':'u2', 'scale_factor':0.01      } #            0.0 .. 100.0
+  RH2          : { 'datatype':'u2', 'scale_factor':0.01      } #        7.60795 .. 100.0
+  MSLP         : { 'datatype':'u2', 'scale_factor':100       } #        95056.3 .. 110819.0
+  QVAPOR       : { 'datatype':'i2', 'scale_factor':0.000001  } #   -6.02452e-05 .. 0.0231472
+  QCLOUD       : { 'datatype':'u2', 'scale_factor':0.000001  } #   -4.91652e-11 .. 0.00657087
+  QRAIN        : { 'datatype':'u2', 'scale_factor':0.0000001 } #   -5.02416e-12 .. 0.00393606
+  TSLB         : { 'datatype':'u2', 'scale_factor':0.01      } #        253.662 .. 322.814
+  SMOIS        : { 'datatype':'u2', 'scale_factor':0.0001    } #           0.02 .. 1.0
+  GRDFLX       : { 'datatype':'i2', 'scale_factor':0.1       } #       -346.537 .. 219.888
+  ACSNOM       : { 'datatype':'u2', 'scale_factor':0.01      } #            0.0 .. 310.071
+  SNOW         : { 'datatype':'u2', 'scale_factor':0.1       } #            0.0 .. 3693.19
+  SNOWH        : { 'datatype':'u2', 'scale_factor':0.001     } #            0.0 .. 18.4321
+  TKE_PBL      : { 'datatype':'u2', 'scale_factor':0.001     } #            0.0 .. 41.7699
+  SINALPHA     : { 'datatype':'i2', 'scale_factor':0.0001    } #      -0.391289 .. 0.391289
+  COSALPHA     : { 'datatype':'u2', 'scale_factor':0.0001    } #       0.920268 .. 1.0
+  HGT          : { 'datatype':'i2', 'scale_factor':10        } #       -98.4272 .. 5535.34
+  RAINC        : { 'datatype':'u2', 'scale_factor':0.01      } #   -4.88701e-08 .. 120.7
+  RAINNC       : { 'datatype':'u2', 'scale_factor':0.01      } #   -1.81899e-12 .. 240.49
+  SWDOWN       : { 'datatype':'u2', 'scale_factor':0.1       } #      -0.120829 .. 1070.03
+  GLW          : { 'datatype':'u2', 'scale_factor':0.01      } #            0.0 .. 479.565
+  XLAT_U       : { 'datatype':'i2', 'scale_factor':0.01      } #       -36.1164 .. 68.5601
+  XLONG_U      : { 'datatype':'i2', 'scale_factor':0.01      } #       -73.4816 .. 61.0481
+  XLAT_V       : { 'datatype':'i2', 'scale_factor':0.01      } #       -36.1717 .. 68.6004
+  XLONG_V      : { 'datatype':'i2', 'scale_factor':0.01      } #       -73.4131 .. 61.005
+  PBLH         : { 'datatype':'u2', 'scale_factor':0.1       } #            0.0 .. 4960.32
+  REGIME       : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
+  SNOWC        : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
+  SR           : { 'datatype':'u2', 'scale_factor':0.0001    } #   -7.66438e-08 .. 1.0
+  BN2          : { 'datatype':'i2', 'scale_factor':0.000001  } #    -0.00323444 .. 0.0138821
+  SAVE_TOPO_FROM_REAL : { 'datatype':'u2', 'scale_factor':0.0001 } #              0 .. 0
+  UST_T        : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
+  ASH_FALL     : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
+  SEED1        : { 'datatype':'u2', 'scale_factor':0.0001    } #              0 .. 0
+  SEED2        : { 'datatype':'u2', 'scale_factor':0.0001    } #              0 .. 0
+  SST          : { 'datatype':'u2', 'scale_factor':0.01      } #        236.483 .. 332.862
+  ZNU          : { 'datatype':'u2', 'scale_factor':0.0001    } #          0.015 .. 0.9965
+  ZNW          : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
+  ZS           : { 'datatype':'u2', 'scale_factor':0.0001    } #           0.05 .. 1.5
+  ZETATOP      : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
+  XTIME        : { 'datatype':'u2', 'scale_factor':0.1       } #            0.0 .. 4680.07
+  CWM          : { 'datatype':'u2', 'scale_factor':0.000001  } #   -5.44648e-12 .. 0.00701687
+  F_ICE_PHY    : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
+  F_RAIN_PHY   : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
+  F_RIMEF_PHY  : { 'datatype':'u2', 'scale_factor':0.001     } #            1.0 .. 45.2593
+  P_TOP        : { 'datatype':'u2', 'scale_factor':0.1       } #         5000.0 .. 5000.0
+  QNICE        : { 'datatype':'u2', 'scale_factor':1000      } #   -1.67454e-07 .. 918946.0
+  QNSNOW       : { 'datatype':'u2', 'scale_factor':1000      } #   -1.09655e-09 .. 1.51145e+06
+  QNRAIN       : { 'datatype':'u2', 'scale_factor':100       } #   -2.20299e-06 .. 107022.0
+  QNGRAUPEL    : { 'datatype':'u2', 'scale_factor':10        } #   -9.16737e-11 .. 8827.42
+  UST          : { 'datatype':'u2', 'scale_factor':0.0001    } #     0.00128093 .. 1.28317
 
 # Compression level for output file. 0 to disable, values 1-9 are passed to zlib
 complevel: 6

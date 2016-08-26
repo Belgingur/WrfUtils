@@ -5,6 +5,8 @@
 Shrink wrfout files by reducing the number of digits for variables.
 """
 
+from __future__ import print_function, unicode_literals, division, absolute_import
+
 import os
 import sys
 
@@ -43,19 +45,6 @@ TYPE_RANGE = dict(
     f4=(-3.4e38, +3.4e38),
     f8=(-1.79e308, +1.79e308)
 )
-
-
-def range_for_override(override):
-    """
-    Given an override array which specifies a datatype and optionally a scale_factor,
-    return the min/max values the corresponding variable can hold.
-    """
-    scale = override.get('scale_factor', 1)
-    offset = override.get('add_offset', 0)
-    datatype = override.get('datatype')
-    if datatype:
-        return range[0] * scale - offset, \
-               range[1] * scale - offset
 
 
 class Override(object):
@@ -341,14 +330,14 @@ def main():
         for t in xrange(0, size_t, chunk_size):
             chunk = indices[t:t + chunk_size]
             LOG.info('Chunk[%s..%s]: %s - %s', chunk[0], chunk[-1], dates[chunk[0]], dates[chunk[-1]])
-            LOG.info('    Variable          Min        Max  Dimensions')
+            LOG.info('    Variable            Min          Max  Dimensions')
             if len(chunk) != chunk_size:
                 LOG.info('Last chunk is shorter than previous chunks')
             for invar, outvar in zip(invars, outvars):
                 inchunk = invar[chunk, :, :]
                 chunk_min, chunk_max = np.min(inchunk), np.max(inchunk)
                 dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
-                LOG.info('    %- 10s % 10.2f % 10.2f  %s', invar.name, chunk_min, chunk_max, dim_str)
+                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format( invar.name, chunk_min, chunk_max, dim_str))
                 override = overrides.get(invar.name) or overrides.get('default')
                 if override.range_min is not None and override.range_max is not None:
                     if chunk_min < override.range_min - override.scale_factor or chunk_max > override.range_max + override.scale_factor:
