@@ -57,12 +57,12 @@ overrides:
   V            : { 'datatype':'i2', 'scale_factor':0.01      } #       -56.2487 .. 56.1709
   W            : { 'datatype':'i2', 'scale_factor':0.01      } #
   PH           : { 'datatype':'i4', 'scale_factor':0.01      } # 
-  PHB          : { 'datatype':'u4', 'scale_factor':1.0       } # 
+  PHB          : { 'datatype':'u4', 'scale_factor':0.01       } # 
   T            : { 'datatype':'i2', 'scale_factor':0.1       } #       -27.0829 .. 231.479
   TKE          : { 'datatype':'u1', 'scale_factor':1.0    } #  
   P            : { 'datatype':'i4', 'scale_factor':0.01        } # 
   ALT          : { 'datatype':'u2', 'scale_factor':0.001     } #       0.775187 .. 12.8481
-  PB           : { 'datatype':'u2', 'scale_factor':100       } #        5049.49 .. 100973.0
+  PB           : { 'datatype':'u4', 'scale_factor':0.01       } #        5049.49 .. 100973.0
   Q2           : { 'datatype':'i4', 'scale_factor':0.000000001  } #
   QFX          : { 'datatype':'i4', 'scale_factor':0.000000001 } #
   TSK          : { 'datatype':'u2', 'scale_factor':0.01      } #        250.647 .. 320.141
