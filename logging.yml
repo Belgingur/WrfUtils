@@ -15,12 +15,20 @@ handlers:
     formatter: complete
     stream: ext://sys.stdout
 
-
 root:
   level: WARN
   handlers: [console]
+
 loggers:
   belgingur:
     level: INFO
     #handlers: [console,file,errors]
+    propagate: True
+
+  sqlalchemy.engine:
+    level: WARN  # Set to INFO to see SQL statements
+    propagate: True
+
+  sqlalchemy.pool:
+    level: INFO
     propagate: True

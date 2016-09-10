@@ -5,7 +5,15 @@
 
 name: WrfUtils3
 dependencies:
-- numpy=1.11.*
-- netcdf4=1.2.*
-- python=3.5.*
-- pyyaml=3.*
+  # Basic python
+  - python=3.5.*
+  - pyyaml=3.*
+
+  # Scientific
+  - numpy=1.11.*
+  - netcdf4=1.2.*
+  - matplotlib=1.5.*
+  
+  # Persistence
+  - sqlalchemy=1.0.*
+  - psycopg2=2.6.*
