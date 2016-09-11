@@ -30,6 +30,7 @@ try:
     basestring
 except NameError:
     basestring = str
+    unicode = str
 
 
 def setup_logging(config_path='./logging.yml'):
@@ -211,7 +212,7 @@ def main():
     config = load_config(args.config)
     engine = create_engine(config['database_url'])
     wrf_path_template = config['wrf_path_template']
-    plot_path_template = config['plot_path_template']
+    plot_path_template = unicode(config['plot_path_template'])
 
     LOG.info('config: %s', config)
     for plot in config['plots']:
