@@ -1,0 +1,20 @@
+# Replace the second `wod` with the actual password for use
+database_url: postgresql+psycopg2://wod:wod@volundur.belgingur.is/wod
+
+wrf_path_template: ./jobs/{submitted:%Y}/{submitted:%m}/{ref}/model/wrfout_d{domain:02d}_*
+plot_path_template: ./plots/{ref}-{component}.png
+
+plots:
+  - ref: 101-reykavik-d2
+    schedule: island-3
+    domain: 2
+    lat:  64.142
+    lon: -21.931
+    spinup: 3  # hours
+
+  - ref: 101-reykavik-d1
+    schedule: island-3
+    domain: 1
+    lat:  64.142
+    lon: -21.931
+    spinup: 3  # hours
