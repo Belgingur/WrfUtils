@@ -85,7 +85,7 @@ overrides:
   SMOIS        : { 'datatype':'u2', 'scale_factor':0.0001    } #           0.02 .. 1.0
   GRDFLX       : { 'datatype':'i2', 'scale_factor':0.1       } #       -346.537 .. 219.888
   ACSNOM       : { 'datatype':'u2', 'scale_factor':0.01      } #            0.0 .. 310.071
-  SNOW         : { 'datatype':'u2', 'scale_factor':0.1       } #            0.0 .. 3693.19
+  SNOW         : { 'datatype':'u4', 'scale_factor':0.1       } #
   SNOWH        : { 'datatype':'u2', 'scale_factor':0.001     } #            0.0 .. 18.4321
   TKE_PBL      : { 'datatype':'u2', 'scale_factor':0.01     } #            0.0 .. 41.7699
   SINALPHA     : { 'datatype':'i2', 'scale_factor':0.0001    } #      -0.391289 .. 0.391289
