@@ -106,7 +106,7 @@ def list_forecast_files(engine, schedule, domain, wrf_path_template):
           AND NOT job.scrubbed
           AND job.completed IS NOT NULL
         ORDER BY job.analysis DESC
-        LIMIT 20
+        LIMIT 50
     '''
     results = engine.execute(sql, schedule_ref=schedule)
 
@@ -140,16 +140,17 @@ def closest_point(file, lat, lon):
         lats = lats[0]
         lons = lons[0]
 
-    LOG.info('Find index of% 7.3f, % 7.3f', lat, lon)
+    LOG.info('Find index of % 7.3f, % 7.3f', lat, lon)
     j0, i0 = -1, -1
     j = lats.shape[0] // 2
     i = lats.shape[1] // 2
     while j != j0 or i != i0:
         j0, i0 = j, i
-        LOG.info('% 4d, % 4d -> % 7.3f, % 7.3f', j, i, lats[j, i], lons[j, i])
+        #LOG.info('% 4d, % 4d -> % 7.3f, % 7.3f', j, i, lats[j, i], lons[j, i])
         i = np.searchsorted(lons[j, :], lon)
-        LOG.info('% 4d, % 4d -> % 7.3f, % 7.3f', j, i, lats[j, i], lons[j, i])
+        #LOG.info('% 4d, % 4d -> % 7.3f, % 7.3f', j, i, lats[j, i], lons[j, i])
         j = np.searchsorted(lats[:, i], lat)
+    LOG.info('% 4d, % 4d -> % 7.3f, % 7.3f', j, i, lats[j, i], lons[j, i])
 
     return j, i
 
@@ -176,7 +177,7 @@ def read_series(filename, cutoff_date, j, i, *var_names):
     ds = netCDF4.Dataset(filename)
     dates = read_dates(ds)
     dates, cutoff_index = cutoff_at(dates, cutoff_date)
-    LOG.info('%s .. %s: %s', cutoff_index, len(dates), filename)
+    #LOG.info('%s .. %s: %s', cutoff_index, len(dates), filename)
     if len(dates) < 2:
         raise ValueError('No usable data in ' + filename)
 
@@ -203,9 +204,6 @@ def plot_data(plot_path, plot_ref, component, analyses, dates_ens, var_ens):
     fig, ax = plt.subplots()
 
     curve_count = len(dates_ens)
-    LOG.info('len(analyses): %s', len(analyses))
-    LOG.info('len(dates_ens): %s', len(dates_ens))
-    LOG.info('len(var_ens): %s', len(var_ens))
     period = dates_ens[0][-1] - dates_ens[-1][0]
     days = period.total_seconds() / 60 / 60 / 24
 
