@@ -10,17 +10,18 @@ from __future__ import print_function, unicode_literals, division, absolute_impo
 import argparse
 import logging
 import logging.config
+import matplotlib.dates
+import matplotlib.pyplot as plt
+import matplotlib.ticker
+import netCDF4
+import numpy as np
 import sys
+import yaml
 from collections import defaultdict
 from datetime import datetime
 from glob import glob
 from itertools import count
-from math import log
-
-import matplotlib.pyplot as plt
-import netCDF4
-import numpy as np
-import yaml
+from math import log, ceil, floor
 from sqlalchemy import create_engine, MetaData
 
 LOG = logging.getLogger('belgingur.poor_ensamble_plot')
@@ -187,20 +188,59 @@ def read_series(filename, cutoff_date, j, i, *var_names):
     return [dates] + vars
 
 
-def plot_data(plot_path, name, analyses, dates_ens, var_ens):
+def make_minor_locator(days, max_ticks):
+    per_day = max_ticks / days
+    interval = int(ceil(24 / per_day))
+    while 24 % interval != 0:
+        interval += 1
+    minorLocator = matplotlib.dates.HourLocator(range(0, 24, interval))
+    return minorLocator
+
+
+def plot_data(plot_path, plot_ref, component, analyses, dates_ens, var_ens):
     LOG.info('Plot %s', plot_path)
-    curve_count = len(analyses)
-    plt.clf()
+
+    fig, ax = plt.subplots()
+
+    curve_count = len(dates_ens)
+    LOG.info('len(analyses): %s', len(analyses))
+    LOG.info('len(dates_ens): %s', len(dates_ens))
+    LOG.info('len(var_ens): %s', len(var_ens))
+    period = dates_ens[0][-1] - dates_ens[-1][0]
+    days = period.total_seconds() / 60 / 60 / 24
+
     for i, analysis, dates, var in zip(count(), analyses, dates_ens, var_ens):
         if i == 0:
             width = 3
-            color = (0.8, 0.2, 0)
+            color = (0.7, 0.1, 0)
         else:
             width = 1
-            color = str(log(i + 1) / log(curve_count + 1))
-        plt.plot(dates[0:len(var)], var, zorder=-i, linewidth=width, color=color)
-    plt.title(name)
+            c = log(i + 2) / log(curve_count + 2)
+            color = (1, c, c)
+        ax.plot(dates[0:len(var)], var, zorder=1000 - i, linewidth=width, color=color)
+
+    # Fromat grid and axis
+    #ax.xaxis.grid(b=True, which='minor', color='0.9', linestyle='-', linewidth=0.5)
+    ax.xaxis.grid(b=True, which='major', color='0.8', linestyle='-')
+    ax.yaxis.grid(b=True, which='major', color='0.8', linestyle='-')
+
+    ax.xaxis.set_major_locator(matplotlib.dates.HourLocator([12]))
+    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('\n%a %d.%m'))
+    ax.xaxis.set_minor_locator(make_minor_locator(days, 30))
+    ax.xaxis.set_minor_formatter(matplotlib.dates.DateFormatter('%H'))
+
+    # labels = ax.get_xticklabels()
+    # plt.setp(labels, rotation=30)
+
+    plt.title(
+        '{plot_ref} {component}\nAnalysis {analysis:%Y-%m-%d %H}'.format(
+            plot_ref=plot_ref,
+            component=component,
+            analysis=analyses[0],
+        ))
+    fig.set_size_inches(12, 6)
     plt.savefig(plot_path, dpi=120)
+    plt.close()
 
 
 ############################################################
@@ -214,7 +254,6 @@ def main():
     wrf_path_template = config['wrf_path_template']
     plot_path_template = unicode(config['plot_path_template'])
 
-    LOG.info('config: %s', config)
     for plot in config['plots']:
         LOG.info('{ref}: {schedule}.*.d{domain:02d} ({lat},{lon})'.format(**plot))
         analyses, files = list_forecast_files(engine, plot['schedule'], plot['domain'], wrf_path_template)
@@ -251,11 +290,13 @@ def main():
         for var_name, var_ens in data.items():
             plot_path = plot_path_template.format(
                 component=var_name,
+                analysis=first_analysis,
                 **plot
             )
             plot_data(
                 plot_path,
-                plot['ref'] + '-' + var_name,
+                plot['ref'],
+                var_name,
                 analyses,
                 dates_ens,
                 var_ens

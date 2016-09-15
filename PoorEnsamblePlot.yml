@@ -2,26 +2,40 @@
 database_url: postgresql+psycopg2://wod:wod86420@volundur.belgingur.is/wod
 
 wrf_path_template: ./jobs/{submitted:%Y}/{submitted:%m}/{ref}/model/wrfout_d{domain:02d}_*
-plot_path_template: ./plots/{ref}-{component}.png
+plot_path_template: ./plots/{ref}-{analysis:%Y%m%d%H}-{component}.png
 
 plots:
-  - ref: 101-reykavik-d2
+  - ref: Reykavik_101
     schedule: island-3
     domain: 2
     lat:  64.142
     lon: -21.931
-    spinup: 3  # hours
+    spinup: 3   # hours
 
-  - ref: 101-reykavik-d1
+  - ref: Reykavik_101_Langtíma
     schedule: island-3
     domain: 1
     lat:  64.142
     lon: -21.931
-    spinup: 3  # hours
+    spinup: 3
 
-  - ref: svínafellsjökull-d2
+  - ref: Svínafellsjökull
     schedule: island-3
     domain: 2
     lat:  63.540
     lon: -19.329
+    spinup: 3
+
+  - ref: Torfajökull
+    schedule: island-3
+    domain: 2
+    lat:  63.916
+    lon: -19.307
+    spinup: 3
+
+  - ref: Torfajökull_Langtíma
+    schedule: island-3
+    domain: 1
+    lat:  63.916
+    lon: -19.307
     spinup: 3
