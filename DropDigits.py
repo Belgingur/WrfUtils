@@ -88,7 +88,7 @@ class Override(object):
         return s
 
 
-def setup_logging(config_path='./logging.yml'):
+def setup_logging(config_path=os.path.join(os.path.dirname(__file__), './logging.yml')):
     with open(config_path) as configFile:
         logging_config = yaml.load(configFile)
         logging.config.dictConfig(logging_config)
