@@ -1,0 +1,6 @@
+# default output files
+weights*.npz
+plots/
+plots_test/
+/Wiski/wrf_wiski_20*
+/Wiski/wrf_wiski_test_20*

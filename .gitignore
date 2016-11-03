@@ -4,7 +4,6 @@
 # Compiled files
 __pycache__/
 *.py[cod]
-<<<<<<< 7f46d1c2afbd9b29b895653c548459eeaa6e9c6a
 
 # Backup files
 *~
@@ -16,13 +15,3 @@ __pycache__/
 *_wrfout_d[0-9][0-9]_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*
 wrfout_d[0-9][0-9]_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*
 *.rhis2
-
-# default output files
-/Wiski/map*.png
-/Wiski/map*.svg
-/Wiski/plots/
-/Wiski/weights/
-/Wiski/test_plots/
-/Wiski/test_weights/
-/Wiski/wrf_wiski_20*
-/Wiski/wrf_wiski_test_20*

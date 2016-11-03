@@ -1,9 +1,9 @@
 # Conda environment description:
 # * Install miniconda
 # * Run `conda env create -f environment.yml`
-# * Run `. activate WrfUtils`
+# * Run `. activate DropDigits`
 
-name: WrfUtils
+name: DropDigits
 dependencies:
   # Basic python
   - python=2.7.*
@@ -12,8 +12,3 @@ dependencies:
   # Scientific
   - numpy=1.11.*
   - netcdf4=1.2.*
-  - matplotlib=1.5.*
-  
-  # Persistence
-  - sqlalchemy=1.0.*
-  - psycopg2=2.6.*

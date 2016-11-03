@@ -28,7 +28,7 @@ shape_files:
 # Split each region into height bands at this interval [m]
 height_resolution: 100
 
-# Pattern to create key for total region withut height
+# Pattern to create key for total region without height
 region_total_key_pattern: '{region}'
 
 # Pattern to create key for region/height combination

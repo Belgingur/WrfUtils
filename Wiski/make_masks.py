@@ -7,22 +7,21 @@ Generates point-weight masks from a WRF-style geography file and shape files.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-# Python library imports
 import argparse
+import os
+import sys
 from collections import defaultdict
 from itertools import cycle, izip
-import netCDF4
-import os
 from math import isnan, sqrt
 
+import netCDF4
 import numpy
-import pylab
-from mpl_toolkits.basemap import Basemap
-from shapely.geometry import Point, Polygon
 import ogr
 import osr
-import sys
+import pylab
 import yaml
+from mpl_toolkits.basemap import Basemap
+from shapely.geometry import Point, Polygon
 
 
 # SETUP
@@ -243,8 +242,8 @@ class LabelledWeights(object):
         self.sub_cell_area = sub_cell_area
         """ The (approximate) area of the cell around each sub-sampling point. """
 
-        self.polygons = {polygons} if isinstance(polygons, Polygon) else set(polygons)
-        """ set of 1 or more polygons that the data comes from """
+        self.polygons = [polygons] if isinstance(polygons, Polygon) else list(polygons)
+        """ List set of 1 or more unique polygons that the data comes from """
 
         self.weights = weights
         """
@@ -281,13 +280,20 @@ class LabelledWeights(object):
         assert self.region == other.region
         assert self.levels == other.levels
         assert self.sub_cell_area == other.sub_cell_area
+
+        # Union of two lists of the unhashable Polygon instances
+        polygons = list(self.polygons)
+        for p in other.polygons:
+            if p not in self.polygons:
+                polygons.append(p)
+
         return LabelledWeights(
             self.region,
             min(self.min_height, other.min_height) if self.min_height is not None else other.min_height,
             max(self.max_height, other.max_height) if self.max_height is not None else other.max_height,
             self.levels,
             self.sub_cell_area,
-            self.polygons.union(other.polygons),
+            polygons,
             self.weights + other.weights,
             False
         )
