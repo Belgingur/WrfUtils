@@ -7,14 +7,13 @@ Builds data files for wiski by applying masks from make_masks wrf model output
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-# Python library imports
 import argparse
-from gzip import GzipFile
-import netCDF4
-from datetime import datetime
-
-import numpy as np
 import sys
+from datetime import datetime
+from gzip import GzipFile
+
+import netCDF4
+import numpy as np
 import yaml
 
 
@@ -32,13 +31,17 @@ def read_config():
                         help='Write more progress data')
     parser.add_argument('--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
+    parser.add_argument('--weight-grid-offset', default='0,0',
+                        help='Offset of weight grid within the the input wrfout files')
     parser.add_argument('wrfout', nargs='+',
                         help='WRF model output to calculate from')
     args = parser.parse_args()
 
+    weight_grid_offset = map(int, args.weight_grid_offset.split(','))
+
     with open(args.config) as f:
         config = yaml.load(f)
-    return config, args.wrfout, args.verbose
+    return config, weight_grid_offset, args.wrfout, args.verbose
 
 
 # PREPARE
@@ -151,36 +154,53 @@ def rround(x, p):
 
 
 def main():
-    config, wrfouts, verbose = read_config()
+    config, weight_grid_offset, wrfouts, verbose = read_config()
     levels = config['sub_sampling'] ** 2
     spinup_steps = int(config['spinup_steps'])
 
     region_keys_and_weights = read_weights(config['weight_file'], levels)
     output_line_pattern = config['output_line_pattern']
     output_file_pattern = config['output_file_pattern']
+
     for wrfout_name in wrfouts:
         print('Read', wrfout_name)
+
         with netCDF4.Dataset(wrfout_name) as wrfout:
             timestamps = read_timestamps(wrfout)
             start_time = timestamps[spinup_steps]
             output_name = output_file_pattern.format(start_time=start_time)
             print('Write', output_name)
+
             with GzipFile(output_name, 'w') as output_file:
                 for var_key in config['variables']:
                     print('  ', var_key)
                     data, precision = read_data(wrfout, var_key)
                     # print(data.shape, np.min(data), np.average(data), np.max(data))
+
                     for region_key, weight_grid, total_weight in region_keys_and_weights:
                         # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
-                        # weight_grid = weight_grid.reshape(data.shape[1:3])  # [i,j]
-                        weighed = data * weight_grid / levels  # [i,j,t]
-                        sum_over_time = np.sum(weighed, axis=(1, 2))  # t
-                        avg_over_time = sum_over_time / total_weight
-                        avg = np.average(avg_over_time[spinup_steps:])
+
+                        # Crop data to the size of weight_grid att the requested offset
+                        wgo = weight_grid_offset
+                        wgs = weight_grid.shape
+                        if wgo[0] + wgs[0] > data.shape[0] or wgo[1] + wgs[1] > data.shape[1]:
+                            raise Exception(
+                                'Error: Can\'t fit weight grid of shape %s at offset %s in data of shape %s' %
+                                (wgs, wgo, data.shape)
+                            )
+                        cropped_data = data[:, wgo[0]:wgo[0] + wgs[0], wgo[1]:wgo[1] + wgs[1]]
+
+                        # Weigh data and accumulate over grid, leaving time axis
+                        weighed = cropped_data * weight_grid / levels  # [i,j,t]
+                        sum_over_area = np.sum(weighed, axis=(1, 2))  # t
+                        avg_over_area = sum_over_area / total_weight
+
                         if verbose:
+                            avg = np.average(avg_over_area[spinup_steps:])
                             print('    {:<25}{:8.{:}f}'.format(region_key, avg, precision))
 
-                        for time, value in zip(timestamps[spinup_steps:], avg_over_time[spinup_steps:]):
+                        # output the averaged data time series along with identifiers
+                        for time, value in zip(timestamps[spinup_steps:], avg_over_area[spinup_steps:]):
                             line = output_line_pattern.format(
                                 region_key=region_key,
                                 variable=var_key,
