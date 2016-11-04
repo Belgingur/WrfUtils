@@ -1,6 +1,6 @@
 # Settings for make_masks
 geofile: 'wrfout/geo_em.d01.nc'
-sub_sampling: 2
+sub_sampling: 3
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
 shape_files:
@@ -29,16 +29,20 @@ shape_files:
 height_resolution: 100
 
 # Pattern to create key for total region without height
-region_total_key_pattern: '{region}'
+region_total_key_pattern: '{region}:{offset[0]}_{offset[1]}'
 
 # Pattern to create key for region/height combination
-region_height_key_pattern: '{region}_{min_height}_{max_height}'
+region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offset[1]}'
 
 # make_masks writes weight grids to this file and wisky.py reads them back
 weight_file: 'weights_test.npz'
 
 # Plot regions to these files. Ges key from regional_total_key_pattern
 plot_file_pattern: 'plots_test/{region_key}.svg'
+
+# Pattern to construct title for plots
+plot_title_pattern: '{region}'
+
 
 # How many steps to skip from beginning of wrfout file.
 spinup_steps: 3

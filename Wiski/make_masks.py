@@ -26,7 +26,7 @@ from shapely.geometry import Point, Polygon
 
 # SETUP
 
-numpy.set_printoptions(precision=3, linewidth=125)
+numpy.set_printoptions(precision=3, edgeitems=20, linewidth=125)
 
 NaN = float('NaN')
 
@@ -226,7 +226,8 @@ def coord_transform(from_sr_id, to_sr_id):
 # CALCULATE WEIGHTS
 
 class LabelledWeights(object):
-    def __init__(self, region, min_height, max_height, levels, sub_cell_area, polygons, weights, atomic=True):
+    def __init__(self, region, min_height, max_height, levels, sub_cell_area, polygons, weights,
+                 atomic=True, offset=(0, 0)):
         self.region = region
         """ a key for the region """
 
@@ -298,6 +299,23 @@ class LabelledWeights(object):
             False
         )
 
+    def cropped_weights(self):
+        """
+        Return the weights array with any margin of zero values removed, along with the offset into the original area
+        at which the cropped array starts.
+
+        :return: (j0, i0), cropped_weights
+        :rtype: ((int, int), ndarray)
+        """
+        W = numpy.argwhere(self.weights)
+        i0, j0 = W.min(0)
+        i1, j1 = W.max(0) + 1
+        cropped_weights = self.weights[i0:i1, j0:j1]
+
+        # print('  crop weights %s -> %s at %s' %
+        #      (self.weights.shape, cropped_weights.shape, (j0, i0)))
+
+        return (i0, j0), cropped_weights
 
 def points_in_polygon(poly, sub_points_per_cell, shape):
     """
@@ -318,11 +336,13 @@ def points_in_polygon(poly, sub_points_per_cell, shape):
 
 def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, sub_cell_area, height_res):
     """
-    Reads shapefiles and for each polygon,height pair, calculate a weight grid
+    Reads shape_files and for each (polygon,height) pair, calculate a weight grid
     for how many sub-points at that height fall within the polygon.
 
     Returns a list of LabelledWeights(region, height, polygons, weights) instances,
     some of which may refer to the same region,height pairs.
+
+    :rtype: list[LabelledWeights]
     """
     results = []
     for shape_file, regions in shape_files.items():
@@ -346,6 +366,13 @@ def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, 
 
 
 def collate_weights(raw_weights):
+    """
+    Group together weights files belonging to the same region and merge the
+    weights that belong to the same region *and* height range.
+
+    :param LabelledWeights[] raw_weights:
+    :rtype: dict[str, list[LabelledWeights]]
+    """
     print('\nCollate weights by region and height')
     scratch = defaultdict()  # LabelledWeights objects by (region, height)
 
@@ -384,15 +411,25 @@ def plain_name(shape_file):
 
 
 def write_weights(collated_weights, weight_file, region_height_key_pattern, region_total_key_pattern):
-    by_region_key = {}
+    """
+    Write weights to a compressed numpy npz file
+
+    :param dict[str,LabelledWeight[]] collated_weights:
+    :param weight_file: Weight file to output
+    :param unicode region_height_key_pattern: String format pattern
+    :param unicode region_total_key_pattern: String format pattern
+    """
+    output_map = {}
     for region, lw_list in collated_weights.items():
         for lw in lw_list:
             pattern = region_height_key_pattern if lw.atomic else region_total_key_pattern
+            offset, weights = lw.cropped_weights()
             lwd = lw.__dict__
-            key = pattern.format(**lwd)
-            by_region_key[key] = lw.weights
+            key = pattern.format(offset=offset, **lwd)
+            print('add', key, weights.shape)
+            output_map[key] = weights
     print('\nWrite', weight_file)
-    numpy.savez_compressed(weight_file, **by_region_key)
+    numpy.savez_compressed(weight_file, **output_map)
 
 
 # PLOTTING
@@ -445,8 +482,8 @@ def pre_plot(m, x, y, xhgt, height_res):
     return m
 
 
-def post_plot(plot_file_pattern, region_total_key_pattern, law):
-    key = region_total_key_pattern.format(**law.__dict__)
+def post_plot(plot_file_pattern, plot_title_pattern, law):
+    key = plot_title_pattern.format(**law.__dict__)
     plot_file = plot_file_pattern.format(region_key=key)
     print(' ', plot_file)
     pylab.title(law.region)
@@ -455,10 +492,10 @@ def post_plot(plot_file_pattern, region_total_key_pattern, law):
     pylab.close()
 
 
-def plot_data(collated_weights, xlat, xlon, xhgt, height_res, plot_file_pattern, region_total_key_pattern):
+def plot_data(collated_weights, xlat, xlon, xhgt, height_res, plot_file_pattern, plot_title_pattern):
     """
     :type plot_file_pattern: string
-    :type collated_weights: dict of [str, LabelledWeights]
+    :type collated_weights: dict[str, LabelledWeights[]]
     """
 
     print('\nPlot maps')
@@ -490,7 +527,7 @@ def plot_data(collated_weights, xlat, xlon, xhgt, height_res, plot_file_pattern,
                     size = sizes[style] * sqrt((level + 1) / law.levels) / shrink
                     m.plot(x[mask], y[mask], marker, ms=size, mec=color, alpha=3 / 4)
 
-        post_plot(plot_file_pattern, region_total_key_pattern, law)
+        post_plot(plot_file_pattern, plot_title_pattern, law)
 
 
 # MAIN FUNCTION
@@ -532,7 +569,7 @@ def main():
     if config['plot_file_pattern']:
         plot_data(collated_weights, xlat, xlon, xhgt, height_res,
                   config['plot_file_pattern'],
-                  config['region_total_key_pattern'])
+                  config['plot_title_pattern'])
 
 
 if __name__ == '__main__':

@@ -31,17 +31,18 @@ def read_config():
                         help='Write more progress data')
     parser.add_argument('--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
-    parser.add_argument('--weight-grid-offset', default='0,0',
-                        help='Offset of weight grid within the the input wrfout files')
+    parser.add_argument('--perturb-forecast', default='0,0',
+                        help='Move weight grid by this many cells within the input wrfout files')
     parser.add_argument('wrfout', nargs='+',
                         help='WRF model output to calculate from')
     args = parser.parse_args()
 
-    weight_grid_offset = map(int, args.weight_grid_offset.split(','))
+    perturb_forecast = map(int, args.perturb_forecast.split(','))
+    assert len(perturb_forecast) == 2, 'perturb-forecasts must be two integers'
 
     with open(args.config) as f:
         config = yaml.load(f)
-    return config, weight_grid_offset, args.wrfout, args.verbose
+    return config, perturb_forecast, args.wrfout, args.verbose
 
 
 # PREPARE
@@ -52,8 +53,14 @@ def read_weights(weight_file, levels):
     keys_and_weights = []
     for key, weight_grid in sorted(weight_map.items()):
         total_weight = np.sum(weight_grid) / levels
+        if ':' in key:
+            key, offset = key.split(':')
+            offset = map(int, offset.split('_'))
+            assert len(offset) == 2
+        else:
+            offset = (0, 0)
         print('  {:<25s} {:5.2f} cl'.format(key, total_weight))
-        keys_and_weights.append((key, weight_grid, total_weight))
+        keys_and_weights.append((key, offset, weight_grid, total_weight))
     return keys_and_weights
 
 
@@ -154,7 +161,7 @@ def rround(x, p):
 
 
 def main():
-    config, weight_grid_offset, wrfouts, verbose = read_config()
+    config, perturb_forecast, wrfouts, verbose = read_config()
     levels = config['sub_sampling'] ** 2
     spinup_steps = int(config['spinup_steps'])
 
@@ -177,16 +184,17 @@ def main():
                     data, precision = read_data(wrfout, var_key)
                     # print(data.shape, np.min(data), np.average(data), np.max(data))
 
-                    for region_key, weight_grid, total_weight in region_keys_and_weights:
+                    for region_key, weight_grid_offset, weight_grid, total_weight in region_keys_and_weights:
                         # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
 
                         # Crop data to the size of weight_grid att the requested offset
-                        wgo = weight_grid_offset
+                        wgo = (weight_grid_offset[0] + perturb_forecast[0], weight_grid_offset[1] + perturb_forecast[1])
                         wgs = weight_grid.shape
-                        if wgo[0] + wgs[0] > data.shape[0] or wgo[1] + wgs[1] > data.shape[1]:
+                        ds = data.shape
+                        if wgo[0] + wgs[0] > ds[0] or wgo[1] + wgs[1] > ds[1] or wgs[0] < 0 or wgs[1] < 0:
                             raise Exception(
                                 'Error: Can\'t fit weight grid of shape %s at offset %s in data of shape %s' %
-                                (wgs, wgo, data.shape)
+                                (wgs, wgo, ds)
                             )
                         cropped_data = data[:, wgo[0]:wgo[0] + wgs[0], wgo[1]:wgo[1] + wgs[1]]
 
