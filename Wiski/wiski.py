@@ -38,12 +38,10 @@ def RegexMatchingArg(pattern, description=None):
 
     def Type(v):
         try:
-            print('running the type with', v)
             return re.match(pattern, v, ).group(0)
         except:
             raise argparse.ArgumentTypeError(description % v)
 
-    print('making a type with', pattern)
     return Type
 
 
@@ -80,8 +78,6 @@ def parse_perturb(perturb_pretties):
     :param list[str] perturb_pretties:
     :rtype list[int, int]
     """
-    print('perturb_pretties:', perturb_pretties)
-
     perturb_idxs = []
     for pp in perturb_pretties:
         pp = tuple(''.join(x) for _, x in groupby(pp, key=unicode.isdigit))
@@ -89,7 +85,6 @@ def parse_perturb(perturb_pretties):
             int(pp[1]) if pp[0] == 'N' else -int(pp[1]),
             int(pp[3]) if pp[2] == 'E' else -int(pp[3])
         ))
-    print('perturb_idxs:', perturb_idxs)
     return perturb_idxs
 
 
