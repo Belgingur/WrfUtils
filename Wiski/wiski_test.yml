@@ -1,5 +1,5 @@
 # Settings for make_masks
-geofile: 'wrfout/geo_em.d01.nc'
+geofile: 'wrfout_test/geo_em.d01.nc'
 sub_sampling: 3
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
@@ -48,7 +48,7 @@ plot_title_pattern: '{region}'
 spinup_steps: 3
 
 # Pattern for output file-names
-output_file_pattern: 'wrf_wiski_test_{start_time:%Y-%m-%dT%H:%M}.gz'
+output_file_pattern: 'wrf_wiski_test_{start_time:%Y-%m-%dT%H:%M}-{perturb_pretty}.gz'
 
 # Pattern for each line in the output data file
 output_line_pattern: 'wrf_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'

@@ -11,15 +11,40 @@ import argparse
 import sys
 from datetime import datetime
 from gzip import GzipFile
+from itertools import groupby
 
 import netCDF4
 import numpy as np
+import re
 import yaml
-
 
 # SETUP
 
 np.set_printoptions(precision=3, threshold=10000, linewidth=125)
+
+
+def RegexMatchingArg(pattern, description=None):
+    """
+    Returns a custom type for use with ArgumentParser which passes the value through unchanged but validates it against
+    a regular expression. On error it either shows the failing regex or an alternative description supplied in the
+    argument.
+
+    :param str or unicode pattern:
+    :param str or unicode description:
+    """
+    if description is None:
+        description = '"%s" does not match "%s"' % ('%s', pattern)
+    pattern = '^' + pattern + '$'
+
+    def Type(v):
+        try:
+            print('running the type with', v)
+            return re.match(pattern, v, ).group(0)
+        except:
+            raise argparse.ArgumentTypeError(description % v)
+
+    print('making a type with', pattern)
+    return Type
 
 
 def read_config():
@@ -31,18 +56,41 @@ def read_config():
                         help='Write more progress data')
     parser.add_argument('--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
-    parser.add_argument('--perturb-forecast', default='0,0',
-                        help='Move weight grid by this many cells within the input wrfout files')
+    parser.add_argument('--perturb-forecast', default='N0E0',
+                        type=RegexMatchingArg('[NS][0-9]+[WE][0-9]+(,[NS][0-9]+[WE][0-9]+)*',
+                                              '%s is not a comma-separated list of [NS]number[EW]number values'),
+                        help='Move weight grid by this many cells within the input wrfout files. '
+                             'Can be a comma-separated list such as N2E2,N0W1,S2W0. '
+                             'If multiple values are given, the process is run once for each perturbation '
+                             'and the corresponding string value made available as {perturbation} in the '
+                             'output file pattern')
     parser.add_argument('wrfout', nargs='+',
                         help='WRF model output to calculate from')
     args = parser.parse_args()
 
-    perturb_forecast = map(int, args.perturb_forecast.split(','))
-    assert len(perturb_forecast) == 2, 'perturb-forecasts must be two integers'
+    perturb_pretty = args.perturb_forecast.split(',')
 
     with open(args.config) as f:
         config = yaml.load(f)
-    return config, perturb_forecast, args.wrfout, args.verbose
+    return config, perturb_pretty, args.wrfout, args.verbose
+
+
+def parse_perturb(perturb_pretties):
+    """
+    :param list[str] perturb_pretties:
+    :rtype list[int, int]
+    """
+    print('perturb_pretties:', perturb_pretties)
+
+    perturb_idxs = []
+    for pp in perturb_pretties:
+        pp = tuple(''.join(x) for _, x in groupby(pp, key=unicode.isdigit))
+        perturb_idxs.append((
+            int(pp[1]) if pp[0] == 'N' else -int(pp[1]),
+            int(pp[3]) if pp[2] == 'E' else -int(pp[3])
+        ))
+    print('perturb_idxs:', perturb_idxs)
+    return perturb_idxs
 
 
 # PREPARE
@@ -161,7 +209,8 @@ def rround(x, p):
 
 
 def main():
-    config, perturb_forecast, wrfouts, verbose = read_config()
+    config, perturb_pretties, wrfouts, verbose = read_config()
+    perturb_idxs = parse_perturb(perturb_pretties)
     levels = config['sub_sampling'] ** 2
     spinup_steps = int(config['spinup_steps'])
 
@@ -172,51 +221,58 @@ def main():
     for wrfout_name in wrfouts:
         print('Read', wrfout_name)
 
-        with netCDF4.Dataset(wrfout_name) as wrfout:
-            timestamps = read_timestamps(wrfout)
-            start_time = timestamps[spinup_steps]
-            output_name = output_file_pattern.format(start_time=start_time)
-            print('Write', output_name)
+        for perturb_idx, perturb_pretty in zip(perturb_idxs, perturb_pretties):
+            with netCDF4.Dataset(wrfout_name) as wrfout:
+                timestamps = read_timestamps(wrfout)
+                start_time = timestamps[spinup_steps]
+                output_name = output_file_pattern.format(
+                    start_time=start_time,
+                    perturb_pretty=perturb_pretty,
+                    perturb_idx=perturb_idx
+                )
+                print('Write', output_name)
+                if len(perturb_idxs) > 1 and perturb_idxs != (0, 0):
+                    print('Perturb', perturb_pretty, perturb_idx)
 
-            with GzipFile(output_name, 'w') as output_file:
-                for var_key in config['variables']:
-                    print('  ', var_key)
-                    data, precision = read_data(wrfout, var_key)
-                    # print(data.shape, np.min(data), np.average(data), np.max(data))
+                with GzipFile(output_name, 'w') as output_file:
+                    for var_key in config['variables']:
+                        print('  ', var_key)
+                        data, precision = read_data(wrfout, var_key)
+                        # print(data.shape, np.min(data), np.average(data), np.max(data))
 
-                    for region_key, weight_grid_offset, weight_grid, total_weight in region_keys_and_weights:
-                        # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
+                        for region_key, weight_grid_offset, weight_grid, total_weight in region_keys_and_weights:
+                            # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
 
-                        # Crop data to the size of weight_grid att the requested offset
-                        wgo = (weight_grid_offset[0] + perturb_forecast[0], weight_grid_offset[1] + perturb_forecast[1])
-                        wgs = weight_grid.shape
-                        ds = data.shape
-                        if wgo[0] + wgs[0] > ds[0] or wgo[1] + wgs[1] > ds[1] or wgs[0] < 0 or wgs[1] < 0:
-                            raise Exception(
-                                'Error: Can\'t fit weight grid of shape %s at offset %s in data of shape %s' %
-                                (wgs, wgo, ds)
-                            )
-                        cropped_data = data[:, wgo[0]:wgo[0] + wgs[0], wgo[1]:wgo[1] + wgs[1]]
+                            # Crop data to the size of weight_grid at the requested offset
+                            wgo = (weight_grid_offset[0] + perturb_idx[0], weight_grid_offset[1] + perturb_idx[1])
+                            wgs = weight_grid.shape
+                            ds = data.shape[1:]
+                            if wgo[0] + wgs[0] > ds[0] or wgo[1] + wgs[1] > ds[1] or wgo[0] < 0 or wgo[1] < 0:
+                                raise Exception(
+                                    'Can\'t perturb weight grid for %s of shape %s at offset %s by %s %s and fit in data of shape %s' %
+                                    (region_key, wgs, tuple(weight_grid_offset), perturb_pretty, perturb_idx, ds)
+                                )
+                            cropped_data = data[:, wgo[0]:wgo[0] + wgs[0], wgo[1]:wgo[1] + wgs[1]]
 
-                        # Weigh data and accumulate over grid, leaving time axis
-                        weighed = cropped_data * weight_grid / levels  # [i,j,t]
-                        sum_over_area = np.sum(weighed, axis=(1, 2))  # t
-                        avg_over_area = sum_over_area / total_weight
+                            # Weigh data and accumulate over grid, leaving time axis
+                            weighed = cropped_data * weight_grid / levels  # [i,j,t]
+                            sum_over_area = np.sum(weighed, axis=(1, 2))  # t
+                            avg_over_area = sum_over_area / total_weight
 
-                        if verbose:
-                            avg = np.average(avg_over_area[spinup_steps:])
-                            print('    {:<25}{:8.{:}f}'.format(region_key, avg, precision))
+                            if verbose:
+                                avg = np.average(avg_over_area[spinup_steps:])
+                                print('    {:<25}{:8.{:}f}'.format(region_key, avg, precision))
 
-                        # output the averaged data time series along with identifiers
-                        for time, value in zip(timestamps[spinup_steps:], avg_over_area[spinup_steps:]):
-                            line = output_line_pattern.format(
-                                region_key=region_key,
-                                variable=var_key,
-                                time=time,
-                                value=rround(value, precision)
-                            )
-                            output_file.write(line)
-                            output_file.write('\n')
+                            # output the averaged data time series along with identifiers
+                            for time, value in zip(timestamps[spinup_steps:], avg_over_area[spinup_steps:]):
+                                line = output_line_pattern.format(
+                                    region_key=region_key,
+                                    variable=var_key,
+                                    time=time,
+                                    value=rround(value, precision)
+                                )
+                                output_file.write(line)
+                                output_file.write('\n')
 
 
 if __name__ == '__main__':
