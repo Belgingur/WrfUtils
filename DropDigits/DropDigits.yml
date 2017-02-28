@@ -1,6 +1,6 @@
 
-# Whether to include variables by defualt.
-default_include: True
+# Whether to include variables by default.
+default_include: False
 
 # Pattern for output filename suitable for python's format function.
 # Available variables:
@@ -9,13 +9,36 @@ default_include: True
 # - path     The path to the input file (ex: '../runtime') (ex: '.')
 output_filename: '{path}/{basename}_reduced.nc4'
 
-# If default_include is False, include only these variables a
+# If default_include is False, include only these variables
 include:
   - U10
   - V10
   - T2
   - RAINNC
   - SWDOWN
+  - P
+  - PB
+  - PH
+  - PHB
+  - ALBEDO
+  - GLW
+  - GRDFLX
+  - HFX
+  - LH
+  - OLR
+  - PBLH
+  - PSFC
+  - Q2
+  - QFX
+  - SEAICE
+  - SST
+  - T2
+  - TKE_PBL
+  - TSK
+  - U
+  - UST
+  - V
+
 
 # If default_include is True, include all but these variables.
 # The current list was enough to process a single Africa file, but we need more logic here.
@@ -58,7 +81,7 @@ overrides:
   W            : { 'datatype':'i2', 'scale_factor':0.01      } #
   PH           : { 'datatype':'i4', 'scale_factor':0.01      } #
   PHB          : { 'datatype':'i4', 'scale_factor':0.01       } #
-  T            : { 'datatype':'i2', 'scale_factor':0.1       } #       -27.0829 .. 231.479
+  T            : { 'datatype':'i2', 'scale_factor':0.01       } #       -27.0829 .. 231.479
   TKE          : { 'datatype':'u1', 'scale_factor':1.0    } #
   P            : { 'datatype':'i4', 'scale_factor':0.01        } #
   ALT          : { 'datatype':'u2', 'scale_factor':0.001     } #       0.775187 .. 12.8481
@@ -132,4 +155,4 @@ overrides:
   wd           : {}  #    0 .. 260
 
 # Compression level for output file. 0 to disable, values 1-9 are passed to zlib
-complevel: 3
+complevel: 4
