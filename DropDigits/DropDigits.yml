@@ -83,7 +83,7 @@ overrides:
   PH           : { 'datatype':'i4', 'scale_factor':0.01          } #          -4500 .. 8400
   PHB          : { 'datatype':'i4', 'scale_factor':0.01          } #          -1500 .. 200000
   T            : { 'datatype':'i2', 'scale_factor':0.01          } #            -30 .. 200
-  TKE          : { 'datatype':'u1', 'scale_factor':1.0           } #
+  TKE          : { 'datatype':'u2', 'scale_factor':0.01          } #
   P            : { 'datatype':'i4', 'scale_factor':0.01          } #            900 .. 3600
   ALT          : { 'datatype':'u2', 'scale_factor':0.001         } #           0.75 .. 13
   PB           : { 'datatype':'u4', 'scale_factor':0.01          } #           5000 .. 110000
