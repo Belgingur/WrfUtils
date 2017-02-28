@@ -46,109 +46,110 @@ exclude: []
 
 
 # Override attributes in copied variables.
-# Putting '@foo' instead of a dict uses the values given for u16_1
+# Putting '@foo' instead of a dict uses the values given for foo
 # The default key decides how we handle variables with no specific overrides
 overrides:
 
   # Valid datatype specifiers include:
-  #   'f4' (32-bit floating point)
-  #   'f8' (64-bit floating point)
-  #   'i1' (8-bit signed integer)
-  #   'i2' (16-bit signed integer)
-  #   'i4' (32-bit signed integer)
-  #   'i8' (64-bit singed integer)
-  #   'u1' (8-bit unsigned integer)
-  #   'u2' (16-bit unsigned integer)
-  #   'u4' (32-bit unsigned integer)
-  #   'u8' (64-bit unsigned integer)
-  #   'S1' (single-character string).
+  #   'u1' ( 8-bit unsigned integer)  0 .. 255
+  #   'u2' (16-bit unsigned integer)  0 .. 65535
+  #   'u4' (32-bit unsigned integer)  0 .. 4.295e9
+  #   'u8' (64-bit unsigned integer)  0 .. 1.844e19
+  #   'i1' ( 8-bit signed integer)    +- 127
+  #   'i2' (16-bit signed integer)    +- 32767
+  #   'i4' (32-bit signed integer)    +- 2.147e9
+  #   'i8' (64-bit singed integer)    +- 9.223e18
+  #   'f4' (32-bit floating point)    +- -3.4e38
+  #   'f8' (64-bit floating point)    +- 1.79e308
+  #   'S1' (single-character string)
 
   # -3,2767.0 .. 3,276.8
   default:
     scale_factor: 0.1
     datatype: i2
+    #add_offset: 0
 
   # Don't mess with Times
   Times: {}
 
-  #VARIABLE      OVERRIDE                                      #          OBSERVED RANGE
-  XLAT         : { 'datatype':'i4', 'scale_factor':0.00001   } #
-  XLONG        : { 'datatype':'i4', 'scale_factor':0.00001   } #
-  MU           : { 'datatype':'i4', 'scale_factor':0.01      } #
-  MUB          : { 'datatype':'u4', 'scale_factor':0.01      } #
-  U            : { 'datatype':'i2', 'scale_factor':0.01      } #       -32.0709 .. 81.145
-  V            : { 'datatype':'i2', 'scale_factor':0.01      } #       -56.2487 .. 56.1709
-  W            : { 'datatype':'i2', 'scale_factor':0.01      } #
-  PH           : { 'datatype':'i4', 'scale_factor':0.01      } #
-  PHB          : { 'datatype':'i4', 'scale_factor':0.01       } #
-  T            : { 'datatype':'i2', 'scale_factor':0.01       } #       -27.0829 .. 231.479
-  TKE          : { 'datatype':'u1', 'scale_factor':1.0    } #
-  P            : { 'datatype':'i4', 'scale_factor':0.01        } #
-  ALT          : { 'datatype':'u2', 'scale_factor':0.001     } #       0.775187 .. 12.8481
-  PB           : { 'datatype':'u4', 'scale_factor':0.01       } #        5049.49 .. 100973.0
-  Q2           : { 'datatype':'i4', 'scale_factor':0.000000001  } #
-  QFX          : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  TSK          : { 'datatype':'u2', 'scale_factor':0.01      } #        250.647 .. 320.141
-  TH2          : { 'datatype':'u2', 'scale_factor':0.01      } #        250.647 .. 320.141
-  T2           : { 'datatype':'u2', 'scale_factor':0.01      } #        250.647 .. 320.141
-  PSFC         : { 'datatype':'u4', 'scale_factor':0.01      } #
-  U10          : { 'datatype':'i2', 'scale_factor':0.01     } #
-  V10          : { 'datatype':'i2', 'scale_factor':0.01     } #
-  ITIMESTEP    : { 'datatype':'u4', 'scale_factor':1.0        } #
-  RELHUM       : { 'datatype':'u1', 'scale_factor':1.0      } #
-  RH2          : { 'datatype':'u2', 'scale_factor':0.01      } #        7.60795 .. 100.0
-  MSLP         : { 'datatype':'u4', 'scale_factor':0.01       } #
-  QVAPOR       : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  QSNOW        : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  QRAIN        : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  QCLOUD       : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  QGRAUP       : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  QICE         : { 'datatype':'i4', 'scale_factor':0.000000001 } #
-  TSLB         : { 'datatype':'u2', 'scale_factor':0.01      } #        253.662 .. 322.814
-  SMOIS        : { 'datatype':'u2', 'scale_factor':0.0001    } #           0.02 .. 1.0
-  GRDFLX       : { 'datatype':'i2', 'scale_factor':0.1       } #       -346.537 .. 219.888
-  ACSNOM       : { 'datatype':'u2', 'scale_factor':0.01      } #            0.0 .. 310.071
-  SNOW         : { 'datatype':'u4', 'scale_factor':0.1       } #
-  SNOWH        : { 'datatype':'u2', 'scale_factor':0.001     } #            0.0 .. 18.4321
-  TKE_PBL      : { 'datatype':'u2', 'scale_factor':0.01     } #            0.0 .. 41.7699
-  SINALPHA     : { 'datatype':'i2', 'scale_factor':0.0001    } #      -0.391289 .. 0.391289
-  COSALPHA     : { 'datatype':'u2', 'scale_factor':0.0001    } #       0.920268 .. 1.0
-  HGT          : { 'datatype':'i2', 'scale_factor':10        } #       -98.4272 .. 5535.34
-  SNOWNC       : { 'datatype':'u4', 'scale_factor':0.01      } #
-  RAINC        : { 'datatype':'u4', 'scale_factor':0.01      } #
-  RAINNC       : { 'datatype':'u4', 'scale_factor':0.01      } #
-  SWDOWN       : { 'datatype':'u2', 'scale_factor':0.1       } #      -0.120829 .. 1070.03
-  GLW          : { 'datatype':'u2', 'scale_factor':0.01      } #            0.0 .. 479.565
-  XLAT_U       : { 'datatype':'i2', 'scale_factor':0.01      } #       -36.1164 .. 68.5601
-  XLONG_U      : { 'datatype':'i2', 'scale_factor':0.01      } #       -73.4816 .. 61.0481
-  XLAT_V       : { 'datatype':'i2', 'scale_factor':0.01      } #       -36.1717 .. 68.6004
-  XLONG_V      : { 'datatype':'i2', 'scale_factor':0.01      } #       -73.4131 .. 61.005
-  PBLH         : { 'datatype':'u4', 'scale_factor':0.1       } #            0.0 .. 4960.32
-  REGIME       : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
-  SNOWC        : { 'datatype':'u1', 'scale_factor':0.01    } #
-  SR           : { 'datatype':'u1', 'scale_factor':0.01    } #
-  BN2          : { 'datatype':'i2', 'scale_factor':0.000001  } #    -0.00323444 .. 0.0138821
+  #VARIABLE      OVERRIDE                                          #          OBSERVED RANGE
+  XLAT         : { 'datatype':'i4', 'scale_factor':0.00001       } #           -180 .. 180
+  XLONG        : { 'datatype':'i4', 'scale_factor':0.00001       } #            -90 .. 90
+  MU           : { 'datatype':'i4', 'scale_factor':0.01          } #
+  MUB          : { 'datatype':'u4', 'scale_factor':0.01          } #
+  U            : { 'datatype':'i2', 'scale_factor':0.01          } #            -75 .. 75
+  V            : { 'datatype':'i2', 'scale_factor':0.01          } #            -75 .. 75
+  W            : { 'datatype':'i2', 'scale_factor':0.01          } #             -7 .. 9
+  PH           : { 'datatype':'i4', 'scale_factor':0.01          } #          -4500 .. 8400
+  PHB          : { 'datatype':'i4', 'scale_factor':0.01          } #          -1500 .. 200000
+  T            : { 'datatype':'i2', 'scale_factor':0.01          } #            -30 .. 200
+  TKE          : { 'datatype':'u1', 'scale_factor':1.0           } #
+  P            : { 'datatype':'i4', 'scale_factor':0.01          } #            900 .. 3600
+  ALT          : { 'datatype':'u2', 'scale_factor':0.001         } #           0.75 .. 13
+  PB           : { 'datatype':'u4', 'scale_factor':0.01          } #           5000 .. 110000
+  Q2           : { 'datatype':'i4', 'scale_factor':0.000000001   } #     0.00115987 .. 0.0279287
+  QFX          : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  TSK          : { 'datatype':'u2', 'scale_factor':0.01          } #        250.647 .. 320.141
+  TH2          : { 'datatype':'u2', 'scale_factor':0.01          } #        250.647 .. 320.141
+  T2           : { 'datatype':'u2', 'scale_factor':0.01          } #        250.647 .. 320.141
+  PSFC         : { 'datatype':'u4', 'scale_factor':0.01          } #
+  U10          : { 'datatype':'i2', 'scale_factor':0.01          } #
+  V10          : { 'datatype':'i2', 'scale_factor':0.01          } #
+  ITIMESTEP    : { 'datatype':'u4', 'scale_factor':1.0           } #
+  RELHUM       : { 'datatype':'u1', 'scale_factor':1.0           } #
+  RH2          : { 'datatype':'u2', 'scale_factor':0.01          } #        7.60795 .. 100.0
+  MSLP         : { 'datatype':'u4', 'scale_factor':0.01          } #
+  QVAPOR       : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  QSNOW        : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  QRAIN        : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  QCLOUD       : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  QGRAUP       : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  QICE         : { 'datatype':'i4', 'scale_factor':0.000000001   } #
+  TSLB         : { 'datatype':'u2', 'scale_factor':0.01          } #        253.662 .. 322.814
+  SMOIS        : { 'datatype':'u2', 'scale_factor':0.0001        } #           0.02 .. 1.0
+  GRDFLX       : { 'datatype':'i2', 'scale_factor':0.1           } #       -346.537 .. 219.888
+  ACSNOM       : { 'datatype':'u2', 'scale_factor':0.01          } #            0.0 .. 310.071
+  SNOW         : { 'datatype':'u4', 'scale_factor':0.1           } #
+  SNOWH        : { 'datatype':'u2', 'scale_factor':0.001         } #            0.0 .. 18.4321
+  TKE_PBL      : { 'datatype':'u2', 'scale_factor':0.01          } #            0.0 .. 41.7699
+  SINALPHA     : { 'datatype':'i2', 'scale_factor':0.0001        } #      -0.391289 .. 0.391289
+  COSALPHA     : { 'datatype':'u2', 'scale_factor':0.0001        } #       0.920268 .. 1.0
+  HGT          : { 'datatype':'i2', 'scale_factor':10            } #       -98.4272 .. 5535.34
+  SNOWNC       : { 'datatype':'u4', 'scale_factor':0.01          } #
+  RAINC        : { 'datatype':'u4', 'scale_factor':0.01          } #
+  RAINNC       : { 'datatype':'u4', 'scale_factor':0.01          } #
+  SWDOWN       : { 'datatype':'u2', 'scale_factor':0.1           } #      -0.120829 .. 1070.03
+  GLW          : { 'datatype':'u2', 'scale_factor':0.01          } #            0.0 .. 479.565
+  XLAT_U       : { 'datatype':'i2', 'scale_factor':0.01          } #       -36.1164 .. 68.5601
+  XLONG_U      : { 'datatype':'i2', 'scale_factor':0.01          } #       -73.4816 .. 61.0481
+  XLAT_V       : { 'datatype':'i2', 'scale_factor':0.01          } #       -36.1717 .. 68.6004
+  XLONG_V      : { 'datatype':'i2', 'scale_factor':0.01          } #       -73.4131 .. 61.005
+  PBLH         : { 'datatype':'u4', 'scale_factor':0.1           } #            0.0 .. 4960.32
+  REGIME       : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 0.0
+  SNOWC        : { 'datatype':'u1', 'scale_factor':0.01          } #
+  SR           : { 'datatype':'u1', 'scale_factor':0.01          } #
+  BN2          : { 'datatype':'i2', 'scale_factor':0.000001      } #    -0.00323444 .. 0.0138821
   SAVE_TOPO_FROM_REAL : { 'datatype':'u2', 'scale_factor':0.0001 } #              0 .. 0
-  UST_T        : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
-  ASH_FALL     : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
-  SEED1        : { 'datatype':'u2', 'scale_factor':0.0001    } #              0 .. 0
-  SEED2        : { 'datatype':'u2', 'scale_factor':0.0001    } #              0 .. 0
-  SST          : { 'datatype':'u2', 'scale_factor':0.01      } #        236.483 .. 332.862
-  ZNU          : { 'datatype':'u2', 'scale_factor':0.0001    } #          0.015 .. 0.9965
-  ZNW          : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
-  ZS           : { 'datatype':'u2', 'scale_factor':0.0001    } #           0.05 .. 1.5
-  ZETATOP      : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 0.0
-  XTIME        : { 'datatype':'u4', 'scale_factor':0.1       } #
-  CWM          : { 'datatype':'u2', 'scale_factor':0.000001  } #   -5.44648e-12 .. 0.00701687
-  F_ICE_PHY    : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
-  F_RAIN_PHY   : { 'datatype':'u2', 'scale_factor':0.0001    } #            0.0 .. 1.0
-  F_RIMEF_PHY  : { 'datatype':'u2', 'scale_factor':0.001     } #            1.0 .. 45.2593
-  P_TOP        : { 'datatype':'u2', 'scale_factor':0.1       } #         5000.0 .. 5000.0
-  QNICE        : { 'datatype':'i4', 'scale_factor':0.01      } #
-  QNSNOW       : { 'datatype':'i4', 'scale_factor':0.01      } #
-  QNRAIN       : { 'datatype':'i4', 'scale_factor':0.01      } #
-  QNGRAUPEL    : { 'datatype':'i4', 'scale_factor':0.01      } #
-  UST          : { 'datatype':'u2', 'scale_factor':0.01    } #
+  UST_T        : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 0.0
+  ASH_FALL     : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 0.0
+  SEED1        : { 'datatype':'u2', 'scale_factor':0.0001        } #              0 .. 0
+  SEED2        : { 'datatype':'u2', 'scale_factor':0.0001        } #              0 .. 0
+  SST          : { 'datatype':'u2', 'scale_factor':0.01          } #        236.483 .. 332.862
+  ZNU          : { 'datatype':'u2', 'scale_factor':0.0001        } #          0.015 .. 0.9965
+  ZNW          : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 1.0
+  ZS           : { 'datatype':'u2', 'scale_factor':0.0001        } #           0.05 .. 1.5
+  ZETATOP      : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 0.0
+  XTIME        : { 'datatype':'u4', 'scale_factor':0.1           } #
+  CWM          : { 'datatype':'u2', 'scale_factor':0.000001      } #   -5.44648e-12 .. 0.00701687
+  F_ICE_PHY    : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 1.0
+  F_RAIN_PHY   : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 1.0
+  F_RIMEF_PHY  : { 'datatype':'u2', 'scale_factor':0.001         } #            1.0 .. 45.2593
+  P_TOP        : { 'datatype':'u2', 'scale_factor':0.1           } #         5000.0 .. 5000.0
+  QNICE        : { 'datatype':'i4', 'scale_factor':0.01          } #
+  QNSNOW       : { 'datatype':'i4', 'scale_factor':0.01          } #
+  QNRAIN       : { 'datatype':'i4', 'scale_factor':0.01          } #
+  QNGRAUPEL    : { 'datatype':'i4', 'scale_factor':0.01          } #
+  UST          : { 'datatype':'u2', 'scale_factor':0.01          } #
 
   times        : {}  #    1.76684e+07 .. 1.76685e+07
   ws           : {}  #    0 .. 100
