@@ -275,7 +275,7 @@ def create_output_file(outfile_pattern, infile, inds):
     return outfile, outds
 
 
-def create_output_dimensions(inds, invars, outds, margin):
+def create_output_dimensions(inds, invars, outds, margin, sigma_limit):
     LOG.info('Add output dimensions:')
     needdims = set()
     for invar in invars:
@@ -289,6 +289,10 @@ def create_output_dimensions(inds, invars, outds, margin):
             size = None if indim.isunlimited() else indim.size
             if size and looks_planar(dimname):
                 size -= 2 * margin
+            elif sigma_limit and dimname == 'bottom_top':
+                size = min(sigma_limit, size)
+            elif sigma_limit and dimname == 'bottom_top_stag':
+                size = min(sigma_limit + 1, size)
             LOG.info('    %s (%s)', dimname, size or 'unlimited')
             outds.createDimension(dimname, size)
             included_names.append(dimname)
@@ -301,9 +305,9 @@ def create_output_dimensions(inds, invars, outds, margin):
 
 def looks_planar(dimname):
     """
-    Determines whether a dimension with the digen name is a planar dimension, i.e. east/west or north/south
+    Determines whether a dimension with the given name is a planar dimension, i.e. east/west or north/south
 
-    :param unicode dimname: Name of variable
+    :param unicode dimname: Name of dimension
     """
     return dimname and \
            'south' in dimname or 'north' in dimname or \
@@ -320,7 +324,6 @@ def work_wrf_dates(times):
     Returns:
         list[datetime]: Python-friendly dates
     """
-    LOG.info('Working dates %s to %s', times[0].tostring(), times[-1].tostring())
     dates = []
     for t in times[:]:
         tt = t.tostring()
@@ -329,6 +332,34 @@ def work_wrf_dates(times):
         dates.append(datetime.datetime.strptime(tt, '%Y-%m-%d_%H:%M:%S'))
     dates = np.array(dates)
     return dates
+
+
+def log_sigma_level_height(inds, sigma_limit):
+    """ Logs the minimum height of the highest sigma level above sea level and above surface. """
+    if sigma_limit is not None:
+
+        PH_ = inds.variables.get('PH')
+        PHB = inds.variables.get('PHB')
+        HGT = inds.variables.get('HGT')
+        if PH_ is not None and PHB is not None and HGT is not None:
+            np.set_printoptions(edgeitems=5, precision=0, linewidth=220)
+
+            # De-stagger PH and PHB (average adjacent surfaces)
+            # and convert to height (add PH and PHB and divide by g)
+            # Bulding the _l arrays and adding the two levels is much faster than adding them directly from PH and PHB
+            PH__l = PH_[:, sigma_limit - 1:sigma_limit + 1, :, :]
+            PHB_l = PHB[:, sigma_limit - 1:sigma_limit + 1, :, :]
+            Z_HGT = (PH__l[:, 0, :, :] + PH__l[:, 1, :, :] +
+                     PHB_l[:, 0, :, :] + PHB_l[:, 1, :, :]) / (2 * 9.81)
+            HGT0 = np.maximum(HGT, 0)  # Ignore ocean depth
+            height_asl = np.min(Z_HGT)
+            height_agl = np.min(Z_HGT - HGT0)
+            LOG.info(
+                '    3D variables limited to %d levels which reach at least %0.0fm above sea level and %0.0fm above surface level',
+                sigma_limit, height_asl, height_agl
+            )
+        else:
+            LOG.info('    3D variables limited to %d levels which reach an unknown height')
 
 
 ############################################################
@@ -357,16 +388,19 @@ def main():
         dates = work_wrf_dates(inds.variables['Times'])
 
         # Calculate spinup and margin
+        LOG.info('Dimensional limits')
         dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)
         spinup_hours = config.get('spinup_hours', 0)
         spinup = int(spinup_hours * 3600. / dt + 0.5)
-        LOG.info('Spinup is %dh = %d steps', spinup_hours, spinup)
+        LOG.info('    Spinup is %dh = %d steps', spinup_hours, spinup)
         margin = int(config.get('margin_cells', 0))
-        LOG.info('Margin is %d cells', margin)
+        LOG.info('    Margin is %d cells', margin)
+        sigma_limit = config.get('sigma_limit', None)
+        log_sigma_level_height(inds, sigma_limit)
 
         # Create empty output file
         outfile, outds = create_output_file(outfile_pattern, infile, inds)
-        create_output_dimensions(inds, invars, outds, margin)
+        create_output_dimensions(inds, invars, outds, margin, sigma_limit)
         outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0))
 
         # Start the loop through time
@@ -399,8 +433,21 @@ def main():
                                 override)
                             errors += 1
 
-                # Copy chunk, but shift by spinup steps and cut off margin cells in each planar dimension
-                outvar[c_start - spinup:c_end - spinup] = inchunk[..., margin:-margin, margin:-margin]
+                # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
+                max_k = None
+                if sigma_limit is not None:
+                    if 'bottom_top' in invar.dimensions:
+                        max_k = sigma_limit
+                    elif 'bottom_top_stag' in invar.dimensions:
+                        max_k = sigma_limit + 1
+
+                # Copy chunk, but shift by spinup steps and cut off margin and sigma levels as appropriate
+                if max_k is not None:
+                    outvar[c_start - spinup:c_end - spinup] = \
+                        inchunk[..., 0:max_k, margin:-margin, margin:-margin]
+                else:
+                    outvar[c_start - spinup:c_end - spinup] = \
+                        inchunk[..., margin:-margin, margin:-margin]
             outds.sync()
 
         # Close our datasets
