@@ -7,19 +7,18 @@ Shrink wrfout files by reducing the number of digits for variables.
 
 from __future__ import print_function, unicode_literals, division, absolute_import
 
+import argparse
+import datetime
+import logging
+import logging.config
 import os
 import sys
+import time
+from math import log10, ceil
 
 import netCDF4
 import numpy as np
-import logging
-import logging.config
-import time
-import datetime
-import argparse
-
 import yaml
-from math import log10, ceil
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
@@ -35,7 +34,12 @@ except NameError:
 #############################################################
 # Parameters/constants for input data
 
-chunkSize_days = 10
+CHUNK_SIZE_TIME = 128
+
+CHUNK_SIZES = [None,
+               (CHUNK_SIZE_TIME, 19),
+               (CHUNK_SIZE_TIME, 16, 16),
+               (CHUNK_SIZE_TIME, 10, 16, 16)]
 
 TYPE_RANGE = dict(
     u1=(0, 2 ** 8 - 1),
@@ -271,7 +275,7 @@ def create_output_file(outfile_pattern, infile, inds):
     return outfile, outds
 
 
-def create_output_dimensions(inds, invars, outds):
+def create_output_dimensions(inds, invars, outds, margin):
     LOG.info('Add output dimensions:')
     needdims = set()
     for invar in invars:
@@ -283,6 +287,8 @@ def create_output_dimensions(inds, invars, outds):
     for dimname, indim in inds.dimensions.items():
         if dimname in needdims:
             size = None if indim.isunlimited() else indim.size
+            if size and looks_planar(dimname):
+                size -= 2 * margin
             LOG.info('    %s (%s)', dimname, size or 'unlimited')
             outds.createDimension(dimname, size)
             included_names.append(dimname)
@@ -291,6 +297,17 @@ def create_output_dimensions(inds, invars, outds):
 
     # LOG.info('Included dimensions: %s', ', '.join(included_names))
     LOG.info('Excluded dimensions: %s', ', '.join(excluded_names) or '<none>')
+
+
+def looks_planar(dimname):
+    """
+    Determines whether a dimension with the digen name is a planar dimension, i.e. east/west or north/south
+
+    :param unicode dimname: Name of variable
+    """
+    return dimname and \
+           'south' in dimname or 'north' in dimname or \
+           'west' in dimname or 'east' in dimname
 
 
 def work_wrf_dates(times):
@@ -339,28 +356,29 @@ def main():
         # Convert time vector
         dates = work_wrf_dates(inds.variables['Times'])
 
+        # Calculate spinup and margin
+        dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)
+        spinup_hours = config.get('spinup_hours', 0)
+        spinup = int(spinup_hours * 3600. / dt + 0.5)
+        LOG.info('Spinup is %dh = %d steps', spinup_hours, spinup)
+        margin = int(config.get('margin_cells', 0))
+        LOG.info('Margin is %d cells', margin)
+
         # Create empty output file
         outfile, outds = create_output_file(outfile_pattern, infile, inds)
-        create_output_dimensions(inds, invars, outds)
+        create_output_dimensions(inds, invars, outds, margin)
         outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0))
 
-        # Set chunks
-        dt = (dates[1] - dates[0]).seconds
-        size_t = len(dates)
-        indices = range(0, size_t)
-        chunk_size_prefered = int(chunkSize_days * 24. * 3600. / dt)
-        chunk_size = min(size_t, chunk_size_prefered)
-
         # Start the loop through time
-        LOG.info('Copying data in chunks of %s time steps', chunk_size)
-        for t in range(0, size_t, chunk_size):
-            chunk = indices[t:t + chunk_size]
-            LOG.info('Chunk[%s..%s]: %s - %s', chunk[0], chunk[-1], dates[chunk[0]], dates[chunk[-1]])
+        LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
+        for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
+            c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
+            LOG.info('Chunk[%s..%s]: %s - %s', c_start, c_end - 1, dates[c_start], dates[c_end - 1])
             LOG.info('    Variable            Min          Max  Dimensions')
-            if len(chunk) != chunk_size:
-                LOG.info('Last chunk is shorter than previous chunks')
+            if c_start > spinup and c_end - c_start != CHUNK_SIZE_TIME:
+                LOG.info('Last chunk is short')
             for invar, outvar in zip(invars, outvars):
-                inchunk = invar[chunk]
+                inchunk = invar[c_start:c_end]
                 dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(invar.dimensions, invar.shape)))
                 override = overrides.get(invar.name) or overrides.get('default')
 
@@ -375,13 +393,14 @@ def main():
                         if chunk_min < override.range_min - override.scale_factor or chunk_max > override.range_max + override.scale_factor:
                             LOG.error(
                                 '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
-                                invar.name, chunk[0], chunk[-1],
+                                invar.name, c_start, c_end,
                                 chunk_min, chunk_max,
                                 override.range_min, override.range_max,
                                 override)
                             errors += 1
 
-                outvar[chunk] = inchunk
+                # Copy chunk, but shift by spinup steps and cut off margin cells in each planar dimension
+                outvar[c_start - spinup:c_end - spinup] = inchunk[..., margin:-margin, margin:-margin]
             outds.sync()
 
         # Close our datasets
