@@ -12,6 +12,7 @@ import datetime
 import logging
 import logging.config
 import os
+import socket
 import sys
 import time
 from math import log10, ceil
@@ -229,16 +230,16 @@ def add_attr(obj, name, value):
     setattr(obj, name_n, value)
 
 
-def create_output_file(outfile_pattern, infile, inds):
+def create_output_file(outfile_pattern, infile, inds, custom_attributes):
     """
     Creates a new dataset with the same attributes as an existing one plus additional
     attributes to trace the file's evolution. Copies the Times variable over verbatim
     if it exists.
 
-    Args:
-        outfile (string):
-        infile (string):
-        inds (netCDF4.Dataset):
+    :param string outfile:
+    :param string infile:
+    :param netCDF4.Dataset inds:
+    :param dict[string, string] custom_attributes:
     """
     inpath, inbase = os.path.split(infile)
     inbase, inext = os.path.splitext(inbase)
@@ -261,12 +262,14 @@ def create_output_file(outfile_pattern, infile, inds):
         setattr(outds, attr, v)
         LOG.debug('    %s = %s', attr, v)
     LOG.info('Add attributes:')
-    add_attr(outds, 'history', 'Created with python at %s by %s' % (
+    add_attr(outds, 'history', 'Converted with DropDigits.py at %s by %s on %s' % (
         datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S'),
-        os.getlogin()
+        os.getlogin(),
+        socket.gethostname()
     ))
-    add_attr(outds, 'institution', 'Belgingur')
     add_attr(outds, 'source', infile)
+    for name, value in custom_attributes.items():
+        add_attr(outds, name, value)
     outds.description = 'Reduced version of: %s' % (getattr(inds, 'description', infile))
     LOG.info('    description = %s', outds.description)
 
@@ -399,7 +402,8 @@ def main():
         log_sigma_level_height(inds, sigma_limit)
 
         # Create empty output file
-        outfile, outds = create_output_file(outfile_pattern, infile, inds)
+        custom_attributes = config.get('custom_attributes', dict())
+        outfile, outds = create_output_file(outfile_pattern, infile, inds, custom_attributes)
         create_output_dimensions(inds, invars, outds, margin, sigma_limit)
         outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0))
 

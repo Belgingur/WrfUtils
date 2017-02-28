@@ -9,6 +9,10 @@ default_include: False
 # - path     The path to the input file (ex: '../runtime') (ex: '.')
 output_filename: '{path}/{basename}_reduced.nc4'
 
+# Custom attributes to add to output file
+custom_attributes:
+  institution: Belgingur
+
 # If default_include is False, include only these variables
 include:
   - U10
