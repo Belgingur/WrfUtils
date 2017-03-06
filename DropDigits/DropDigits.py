@@ -120,6 +120,8 @@ def build_overrides(config):
     """
     Iterate through config['overrides'] and make each entry into a valid Override object with defaults taken from
     override_defaults
+
+    :rtype dict[string, Override]
     """
     specs = config['overrides']
     overrides = {}
@@ -192,7 +194,15 @@ def override_field(outvar, name, override, invar, default=None):
         setattr(outvar, name, value)
 
 
-def create_output_variables(outds, invars, overrides, complevel):
+def create_output_variables(outds, invars, overrides, complevel, chunking):
+    """
+    :param DataSet outds:
+    :param list[DataSet.Variable] invars:
+    :param dict[string, Override] overrides:
+    :param int complevel:
+    :param bool chunking:
+    :return:
+    """
     LOG.info('Create output variables with overrides:')
     outvars = []
     for invar in invars:
@@ -202,11 +212,13 @@ def create_output_variables(outds, invars, overrides, complevel):
 
         datatype = value_with_override('datatype', override, invar)
 
+        chunksizes = CHUNK_SIZES[len(invar.dimensions) - 1] if chunking else None
         outvar = outds.createVariable(invar.name,
                                       datatype,
                                       dimensions=invar.dimensions,
                                       zlib=complevel > 0, complevel=complevel,
-                                      shuffle=True)
+                                      shuffle=True,
+                                      chunksizes=chunksizes)
         for field in ('description', 'least_significant_digit', 'scale_factor', 'add_offset',):
             override_field(outvar, field, override, invar)
         outvars.append(outvar)
@@ -405,7 +417,8 @@ def main():
         custom_attributes = config.get('custom_attributes', dict())
         outfile, outds = create_output_file(outfile_pattern, infile, inds, custom_attributes)
         create_output_dimensions(inds, invars, outds, margin, sigma_limit)
-        outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0))
+        chunking = config.get('chunking', False)
+        outvars = create_output_variables(outds, invars, overrides, config.get('complevel', 0), chunking)
 
         # Start the loop through time
         LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
