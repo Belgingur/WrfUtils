@@ -6,9 +6,9 @@
 name: DropDigits
 dependencies:
   # Basic python
-  - python=2.7.*
+  - python=3.5.*    # There is no netcdf4=1.2.2 for python=3.6 (2017.03.07)
   - pyyaml=3.*
 
   # Scientific
   - numpy=1.11.*
-  - netcdf4=1.2.*
+  - netcdf4=1.2.2   # 1.2.4 has no ncdump! (2017.03.07)
