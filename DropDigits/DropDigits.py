@@ -322,7 +322,7 @@ def main():
         comp_level = config.get('complevel', 0)
         out_vars = create_output_variables(out_ds, in_vars, overrides, comp_level, chunking, sigma_limit)
 
-        # Start the loop through time
+        # Loop through time chunks
         LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
         for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
             c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
@@ -330,11 +330,29 @@ def main():
             LOG.info('    Variable            Min          Max  Dimensions')
             if c_start > spinup and c_end - c_start != CHUNK_SIZE_TIME:
                 LOG.info('Last chunk is short')
+
+            # Loop through variables
             for in_var, out_var in zip(in_vars, out_vars):
-                in_chunk = in_var[c_start:c_end]
+
+                # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
+                max_k = None  # type: int
+                if sigma_limit is not None:
+                    if 'bottom_top' in in_var.dimensions:
+                        max_k = sigma_limit
+                    elif 'bottom_top_stag' in in_var.dimensions:
+                        max_k = sigma_limit + 1
+
+                # Carve out a chunk of input variable that we want to copy
+                if max_k is not None:
+                    in_chunk = in_var[c_start:c_end, 0:max_k, margin:-margin, margin:-margin]
+                else:
+                    in_chunk = in_var[c_start:c_end, ..., margin:-margin, margin:-margin]
+                out_var[c_start - spinup:c_end - spinup] = in_chunk
+                out_ds.sync()
+
+                # Log variable dimensions and sanity check
                 dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
                 override = overrides.get(in_var.name) or overrides.get('default')
-
                 if in_var.datatype == '|S1':
                     # Text data
                     LOG.info('    {:10}          N/A          N/A  {}'.format(in_var.name, dim_str))
@@ -352,23 +370,6 @@ def main():
                                 override.range_min, override.range_max,
                                 override)
                             errors += 1
-
-                # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
-                max_k = None
-                if sigma_limit is not None:
-                    if 'bottom_top' in in_var.dimensions:
-                        max_k = sigma_limit
-                    elif 'bottom_top_stag' in in_var.dimensions:
-                        max_k = sigma_limit + 1
-
-                # Copy chunk, but shift by spinup steps and cut off margin and sigma levels as appropriate
-                if max_k is not None:
-                    out_var[c_start - spinup:c_end - spinup] = \
-                        in_chunk[..., 0:max_k, margin:-margin, margin:-margin]
-                else:
-                    out_var[c_start - spinup:c_end - spinup] = \
-                        in_chunk[..., margin:-margin, margin:-margin]
-                out_ds.sync()
 
         # Close our datasets
         in_ds.close()
