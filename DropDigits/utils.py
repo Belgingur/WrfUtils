@@ -1,14 +1,16 @@
 import datetime
 import logging
 import os
+import socket
 import sys
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Any
 from typing import List, Tuple
 from typing import Union
 
 import numpy as np
 import yaml
-from netCDF4 import Variable
+from netCDF4 import Dataset, Variable
 
 LOG = logging.getLogger('belgingur.utils')
 
@@ -92,6 +94,66 @@ def out_file_name(in_file: str, outfile_pattern: str) -> str:
         ext=in_ext,
     )
     return outfile
+
+
+def create_output_dataset(out_file: str, in_file: str, in_ds: Dataset,
+                          custom_attributes: Dict[str, str], app_name: str = None) -> (str, Dataset):
+    """
+    Creates a new dataset with the same attributes as an existing one plus additional
+    attributes to trace the file's evolution. Copies the Times variable over verbatim
+    if it exists.
+
+    :param out_file: The path to the file to create
+    :param in_file: The pth to the file to say the out_file is created from
+    :param in_ds: The Dataset to copy attributes from
+    :param custom_attributes: Dictionary of attributes to add to the file
+    :param app_name: Name of application to say converted the file. Defaults to filename of root script.
+    """
+    LOG.info('Creating output file %s', out_file)
+    if os.path.exists(out_file):
+        logging.warning('Will overwrite existing file')
+    out_ds = Dataset(out_file, mode='w', weakref=True)
+
+    if not app_name:
+        app_name = Path(sys.argv[0]).name
+
+    # Add some file meta-data
+    LOG.info('Setting/updating global file attributes for output file')
+    LOG.info('Copy %s attributes', len(in_ds.ncattrs()))
+    for attr in in_ds.ncattrs():
+        v = getattr(in_ds, attr)
+        setattr(out_ds, attr, v)
+        LOG.debug('    %s = %s', attr, v)
+    LOG.info('Add attributes:')
+    add_attr(out_ds, 'history', 'Converted with %s at %s by %s on %s' % (
+        app_name,
+        datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S'),
+        os.getlogin(),
+        socket.gethostname()
+    ))
+    add_attr(out_ds, 'source', in_file)
+    for name, value in custom_attributes.items():
+        add_attr(out_ds, name, value)
+    out_ds.description = 'Reduced version of: %s' % (getattr(in_ds, 'description', in_file))
+    LOG.info('    description = %s', out_ds.description)
+
+    # Flush to disk
+    out_ds.sync()
+    return out_ds
+
+
+def add_attr(obj: Any, name: str, value: Any):
+    """ Find the first unset attribute on `obj` called `name`, `name2`, etc. and set it to `value`. """
+    n = 0
+    name_n = name
+    value_n = getattr(obj, name_n, None)
+    while value_n is not None:
+        LOG.info('    %s = %s', name_n, value_n)
+        n += 1
+        name_n = name + str(n)
+        value_n = getattr(n, name_n, None)
+    LOG.info('    %s = %s', name_n, value)
+    setattr(obj, name_n, value)
 
 
 def value_with_override(name: str, override, in_obj, default=None):

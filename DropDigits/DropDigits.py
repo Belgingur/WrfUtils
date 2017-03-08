@@ -6,22 +6,20 @@ Shrink wrfout files by reducing the number of digits for variables.
 """
 
 import argparse
-import datetime
-import logging
 import logging.config
 import os
-import socket
 import sys
 import time
 from math import log10, ceil
-from typing import List, Dict
+from typing import List, Dict, Any
+from typing import Union
 
 import numpy as np
 import yaml
 from netCDF4 import Dataset, Variable
 
 from utils import out_file_name, setup_logging, work_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    value_with_override, override_field
+    value_with_override, override_field, create_output_dataset
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
@@ -81,7 +79,7 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
     Iterate through config['overrides'] and make each entry into a valid Override object with defaults taken from
     override_defaults
     """
-    specs = config['overrides']  # type: Dict[str, Dict[str]]
+    specs = config['overrides']  # type: Dict[str, Union[Dict[str], str]]
     overrides = {}
     for var_name, spec in specs.items():
         try:
@@ -94,7 +92,7 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
     return overrides
 
 
-def resolve_input_variables(in_ds: Dataset, config: Dict[str, None]):
+def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
     """
     Retrieves the variables from in_ds which we intend to copy to out_ds.
     """
@@ -131,7 +129,7 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, None]):
 
 
 def create_output_variables(out_ds: Dataset, in_vars: List[Variable], overrides: Dict[str, Override],
-                            comp_level: int, chunking: bool, max_k: int) -> List[Variable]:
+                            comp_level: int, chunking: bool, max_k: int = None) -> List[Variable]:
     LOG.info('Create output variables with overrides:')
     out_vars = []
     default_override = overrides.get('default')
@@ -160,59 +158,8 @@ def create_output_variables(out_ds: Dataset, in_vars: List[Variable], overrides:
     return out_vars
 
 
-def add_attr(obj, name, value):
-    """
-    Find the first unset global attribute `name`, `name2`, etc. and set it to `value`
-    """
-    n = 0
-    name_n = name
-    value_n = getattr(obj, name_n, None)
-    while value_n is not None:
-        n += 1
-        name_n = name + str(n)
-        value_n = getattr(n, name_n, None)
-    LOG.info('    %s = %s', name_n, value)
-    setattr(obj, name_n, value)
-
-
-def create_output_file(out_file_pattern: str, in_file: str, in_ds: Dataset,
-                       custom_attributes: Dict[str, str]) -> (str, Dataset):
-    """
-    Creates a new dataset with the same attributes as an existing one plus additional
-    attributes to trace the file's evolution. Copies the Times variable over verbatim
-    if it exists.
-    """
-    out_file = out_file_name(in_file, out_file_pattern)
-    LOG.info('Creating output file %s', out_file)
-    if os.path.exists(out_file):
-        logging.warning('Will overwrite existing file')
-    out_ds = Dataset(out_file, mode='w', weakref=True)
-
-    # Add some file meta-data
-    LOG.info('Setting/updating global file attributes for output file')
-    LOG.info('Copy %s attributes', len(in_ds.ncattrs()))
-    for attr in in_ds.ncattrs():
-        v = getattr(in_ds, attr)
-        setattr(out_ds, attr, v)
-        LOG.debug('    %s = %s', attr, v)
-    LOG.info('Add attributes:')
-    add_attr(out_ds, 'history', 'Converted with DropDigits.py at %s by %s on %s' % (
-        datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S'),
-        os.getlogin(),
-        socket.gethostname()
-    ))
-    add_attr(out_ds, 'source', in_file)
-    for name, value in custom_attributes.items():
-        add_attr(out_ds, name, value)
-    out_ds.description = 'Reduced version of: %s' % (getattr(in_ds, 'description', in_file))
-    LOG.info('    description = %s', out_ds.description)
-
-    # Flush to disk
-    out_ds.sync()
-    return out_file, out_ds
-
-
-def create_output_dimensions(in_ds:Dataset, in_vars:List[Variable], out_ds:Dataset, margin:int, sigma_limit:int):
+def create_output_dimensions(in_ds: Dataset, in_vars: List[Variable], out_ds: Dataset, margin: int,
+                             max_k: int = None):
     LOG.info('Add output dimensions:')
     need_dims = set()
     for in_var in in_vars:
@@ -226,10 +173,10 @@ def create_output_dimensions(in_ds:Dataset, in_vars:List[Variable], out_ds:Datas
             size = None if in_dim.isunlimited() else in_dim.size
             if size and looks_planar(dim_name):
                 size -= 2 * margin
-            elif sigma_limit and dim_name == 'bottom_top':
-                size = min(sigma_limit, size)
-            elif sigma_limit and dim_name == 'bottom_top_stag':
-                size = min(sigma_limit + 1, size)
+            elif max_k and dim_name == 'bottom_top':
+                size = min(max_k, size)
+            elif max_k and dim_name == 'bottom_top_stag':
+                size = min(max_k + 1, size)
             LOG.info('    %s (%s)', dim_name, size or 'unlimited')
             out_ds.createDimension(dim_name, size)
             included_names.append(dim_name)
@@ -250,32 +197,35 @@ def looks_planar(dim_name: str):
 
 
 # noinspection PyPep8Naming
-def log_sigma_level_height(in_ds:Dataset, sigma_limit:int):
+def log_sigma_level_height(in_ds: Dataset, max_k: int = None):
     """ Logs the minimum height of the highest sigma level above sea level and above surface. """
-    if sigma_limit is not None:
 
-        PH_ = in_ds.variables.get('PH')
-        PHB = in_ds.variables.get('PHB')
-        HGT = in_ds.variables.get('HGT')
-        if PH_ is not None and PHB is not None and HGT is not None:
-            np.set_printoptions(edgeitems=5, precision=0, linewidth=220)
+    if max_k is None:
+        # Nothing to do
+        return
 
-            # De-stagger PH and PHB (average adjacent surfaces)
-            # and convert to height (add PH and PHB and divide by g)
-            # Building the _l arrays and adding the two levels is much faster than adding them directly from PH and PHB
-            PH__l = PH_[:, sigma_limit - 1:sigma_limit + 1, :, :]
-            PHB_l = PHB[:, sigma_limit - 1:sigma_limit + 1, :, :]
-            Z_HGT = (PH__l[:, 0, :, :] + PH__l[:, 1, :, :] +
-                     PHB_l[:, 0, :, :] + PHB_l[:, 1, :, :]) / (2 * 9.81)
-            HGT0 = np.maximum(HGT, 0)  # Ignore ocean depth
-            # noinspection PyTypeChecker
-            height_asl = np.min(Z_HGT)
-            height_agl = np.min(Z_HGT - HGT0)
-            LOG.info('    3D variables limited to %d levels which reach at least '
-                     '%0.0fm above sea level and %0.0fm above surface level',
-                     sigma_limit, height_asl, height_agl)
-        else:
-            LOG.info('    3D variables limited to %d levels which reach an unknown height')
+    PH_ = in_ds.variables.get('PH')
+    PHB = in_ds.variables.get('PHB')
+    HGT = in_ds.variables.get('HGT')
+    if PH_ is not None and PHB is not None and HGT is not None:
+        np.set_printoptions(edgeitems=5, precision=0, linewidth=220)
+
+        # De-stagger PH and PHB (average adjacent surfaces)
+        # and convert to height (add PH and PHB and divide by g)
+        # Building the _l arrays and adding the two levels is much faster than adding them directly from PH and PHB
+        PH__l = PH_[:, max_k - 1:max_k + 1, :, :]
+        PHB_l = PHB[:, max_k - 1:max_k + 1, :, :]
+        Z_HGT = (PH__l[:, 0, :, :] + PH__l[:, 1, :, :] +
+                 PHB_l[:, 0, :, :] + PHB_l[:, 1, :, :]) / (2 * 9.81)
+        HGT0 = np.maximum(HGT, 0)  # Ignore ocean depth
+        # noinspection PyTypeChecker
+        height_asl = np.min(Z_HGT)
+        height_agl = np.min(Z_HGT - HGT0)
+        LOG.info('    3D variables limited to %d levels which reach at least '
+                 '%0.0fm above sea level and %0.0fm above surface level',
+                 max_k, height_asl, height_agl)
+    else:
+        LOG.info('    3D variables limited to %d levels which reach an unknown height')
 
 
 ############################################################
@@ -293,87 +243,9 @@ def main():
     LOG.info('')
     for in_file in args.in_files:
         start_time = time.time()
-        errors = 0
+        out_file = out_file_name(in_file, out_file_pattern)
 
-        # Open input datasets
-        LOG.info('Opening input dataset %s', in_file)
-        in_ds = Dataset(in_file, 'r')
-        in_vars = resolve_input_variables(in_ds, config)
-
-        # Convert time vector
-        dates = work_wrf_dates(in_ds.variables['Times'])
-
-        # Calculate spinup and margin
-        LOG.info('Dimensional limits')
-        dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)
-        spinup_hours = config.get('spinup_hours', 0)
-        spinup = int(spinup_hours * 3600. / dt + 0.5)
-        LOG.info('    Spinup is %dh = %d steps', spinup_hours, spinup)
-        margin = int(config.get('margin_cells', 0))
-        LOG.info('    Margin is %d cells', margin)
-        sigma_limit = config.get('sigma_limit', None)
-        log_sigma_level_height(in_ds, sigma_limit)
-
-        # Create empty output file
-        custom_attributes = config.get('custom_attributes', dict())
-        out_file, out_ds = create_output_file(out_file_pattern, in_file, in_ds, custom_attributes)
-        create_output_dimensions(in_ds, in_vars, out_ds, margin, sigma_limit)
-        chunking = config.get('chunking', False)
-        comp_level = config.get('complevel', 0)
-        out_vars = create_output_variables(out_ds, in_vars, overrides, comp_level, chunking, sigma_limit)
-
-        # Loop through time chunks
-        LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
-        for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
-            c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
-            LOG.info('Chunk[%s..%s]: %s - %s', c_start, c_end - 1, dates[c_start], dates[c_end - 1])
-            LOG.info('    Variable            Min          Max  Dimensions')
-            if c_start > spinup and c_end - c_start != CHUNK_SIZE_TIME:
-                LOG.info('Last chunk is short')
-
-            # Loop through variables
-            for in_var, out_var in zip(in_vars, out_vars):
-
-                # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
-                max_k = None  # type: int
-                if sigma_limit is not None:
-                    if 'bottom_top' in in_var.dimensions:
-                        max_k = sigma_limit
-                    elif 'bottom_top_stag' in in_var.dimensions:
-                        max_k = sigma_limit + 1
-
-                # Carve out a chunk of input variable that we want to copy
-                if max_k is not None:
-                    in_chunk = in_var[c_start:c_end, 0:max_k, margin:-margin, margin:-margin]
-                else:
-                    in_chunk = in_var[c_start:c_end, ..., margin:-margin, margin:-margin]
-                out_var[c_start - spinup:c_end - spinup] = in_chunk
-                out_ds.sync()
-
-                # Log variable dimensions and sanity check
-                dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
-                override = overrides.get(in_var.name) or overrides.get('default')
-                if in_var.datatype == '|S1':
-                    # Text data
-                    LOG.info('    {:10}          N/A          N/A  {}'.format(in_var.name, dim_str))
-                else:
-                    # Numeric data
-                    chunk_min, chunk_max = np.min(in_chunk), np.max(in_chunk)
-                    LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(in_var.name, chunk_min, chunk_max, dim_str))
-                    if override.range_min is not None and override.range_max is not None:
-                        sf = override.scale_factor  # Allow overlap of 1 scale factor to be truncated away
-                        if chunk_min < override.range_min - sf or chunk_max > override.range_max + sf:
-                            LOG.error(
-                                '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
-                                in_var.name, c_start, c_end,
-                                chunk_min, chunk_max,
-                                override.range_min, override.range_max,
-                                override)
-                            errors += 1
-
-        # Close our datasets
-        in_ds.close()
-        out_ds.close()
+        errors = process_file(in_file, out_file, config=config, overrides=overrides)
 
         # Print space saved and time used
         in_size = os.path.getsize(in_file)
@@ -403,6 +275,85 @@ def main():
         ))
         if total_errors:
             LOG.error('%d errors in total', total_errors)
+
+
+def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrides: Dict[str, Override]) -> int:
+    LOG.info('Opening input dataset %s', in_file)
+    in_ds = Dataset(in_file, 'r')
+    in_vars = resolve_input_variables(in_ds, config)
+    errors = 0
+
+    dates = work_wrf_dates(in_ds.variables['Times'])
+
+    LOG.info('Dimensional limits')
+    dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)
+    spinup_hours = config.get('spinup_hours', 0)
+    spinup = int(spinup_hours * 3600. / dt + 0.5)
+    LOG.info('    Spinup is %dh = %d steps', spinup_hours, spinup)
+    margin = int(config.get('margin_cells', 0))
+    LOG.info('    Margin is %d cells', margin)
+    max_k = config.get('sigma_limit', None)  # type: Union[int, None]
+    log_sigma_level_height(in_ds, max_k)
+
+    custom_attributes = config.get('custom_attributes', dict())
+    out_ds = create_output_dataset(out_file, in_file, in_ds, custom_attributes)
+    create_output_dimensions(in_ds, in_vars, out_ds, margin, max_k)
+    chunking = config.get('chunking', False)
+    comp_level = config.get('complevel', 0)
+    out_vars = create_output_variables(out_ds, in_vars, overrides, comp_level, chunking, max_k)
+
+    LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
+    for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
+        c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
+        LOG.info('Chunk[%s..%s]: %s - %s', c_start, c_end - 1, dates[c_start], dates[c_end - 1])
+        LOG.info('    Variable            Min          Max  Dimensions')
+        if c_start > spinup and c_end - c_start != CHUNK_SIZE_TIME:
+            LOG.info('Last chunk is short')
+
+        # Loop through variables
+        for in_var, out_var in zip(in_vars, out_vars):
+
+            # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
+            var_max_k = None  # type: int
+            if max_k is not None:
+                if 'bottom_top' in in_var.dimensions:
+                    var_max_k = max_k
+                elif 'bottom_top_stag' in in_var.dimensions:
+                    var_max_k = (max_k or 0) + 1  # silly syntax to make PyCharm not complain about None
+
+            # Carve out a chunk of input variable that we want to copy
+            if var_max_k is not None:
+                in_chunk = in_var[c_start:c_end, 0:var_max_k, margin:-margin, margin:-margin]
+            else:
+                in_chunk = in_var[c_start:c_end, ..., margin:-margin, margin:-margin]
+            out_var[c_start - spinup:c_end - spinup] = in_chunk
+            out_ds.sync()
+
+            # Log variable dimensions and sanity check
+            dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
+            override = overrides.get(in_var.name) or overrides.get('default')
+            if in_var.datatype == '|S1':
+                # Text data
+                LOG.info('    {:10}          N/A          N/A  {}'.format(in_var.name, dim_str))
+            else:
+                # Numeric data
+                chunk_min, chunk_max = np.min(in_chunk), np.max(in_chunk)
+                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(in_var.name, chunk_min, chunk_max, dim_str))
+                if override.range_min is not None and override.range_max is not None:
+                    sf = override.scale_factor  # Allow overlap of 1 scale factor to be truncated away
+                    if chunk_min < override.range_min - sf or chunk_max > override.range_max + sf:
+                        LOG.error(
+                            '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
+                            in_var.name, c_start, c_end,
+                            chunk_min, chunk_max,
+                            override.range_min, override.range_max,
+                            override)
+                        errors += 1
+
+    # Close our datasets
+    in_ds.close()
+    out_ds.close()
+    return errors
 
 
 if __name__ == '__main__':
