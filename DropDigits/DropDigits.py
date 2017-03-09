@@ -115,7 +115,7 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
             in_vars.append(in_var)
         else:
             excluded_names.append(var_name)
-    LOG.debug('Included variables: \n%s', '\n'.join(map(str, in_vars)))
+    LOG.debug('Included variables: %s', ', '.join(map(str, in_vars)))
     LOG.info('Excluded variables: %s', ', '.join(excluded_names) or '<none>')
 
     if default_include:
@@ -305,8 +305,8 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
     LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
     for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
         c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
-        LOG.info('Chunk[%s..%s]: %s - %s', c_start, c_end - 1, dates[c_start], dates[c_end - 1])
-        LOG.info('    Variable            Min          Max  Dimensions')
+        LOG.info('Chunk[%s:%s]: %s - %s', c_start, c_end, dates[c_start], dates[c_end - 1])
+        LOG.info('    Variable            Min          Max  Input Dimensions')
         if c_start > spinup and c_end - c_start != CHUNK_SIZE_TIME:
             LOG.info('Last chunk is short')
 
@@ -324,8 +324,10 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
             # Carve out a chunk of input variable that we want to copy
             if var_max_k is not None:
                 in_chunk = in_var[c_start:c_end, 0:var_max_k, margin:-margin, margin:-margin]
-            else:
+            elif len(in_var.shape) >= 3:
                 in_chunk = in_var[c_start:c_end, ..., margin:-margin, margin:-margin]
+            else:
+                in_chunk = in_var[c_start:c_end]
             out_var[c_start - spinup:c_end - spinup] = in_chunk
             out_ds.sync()
 
