@@ -1,10 +1,11 @@
 import datetime
 import logging
+import logging.config
 import os
 import socket
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Iterable
 from typing import List, Tuple
 from typing import Union
 
@@ -13,6 +14,12 @@ import yaml
 from netCDF4 import Dataset, Variable
 
 LOG = logging.getLogger('belgingur.utils')
+
+g = 9.81  # [m/s²]
+""" Gravitational acceleration on Earth """
+
+g_inv = 1. / g  # [s²/m]
+""" Inverse Gravity """
 
 __EMPTY__ = '__EMPTY__'
 """ Magic empty value distinct from None. """
@@ -58,7 +65,7 @@ def pick_chunk_sizes(var: Variable, max_k: int = None) -> Tuple[int]:
     return chunk_sizes
 
 
-def work_wrf_dates(times: List[str]) -> np.ndarray:
+def work_wrf_dates(times: Iterable[np.ndarray]) -> np.ndarray:
     """ Convert the WRF-style Times array from list of strings to a list of datetime objects. """
     dates = []
     for t in times[:]:

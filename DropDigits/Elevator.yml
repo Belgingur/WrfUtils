@@ -11,11 +11,15 @@ custom_attributes:
 
 # Altitudes [m] at which to interpolate 3D variables
 heights:
-  - 10
+  - 10  # TODO: Not available on bottom_top which would require extrapolation
   - 50
   - 80
   - 100
   - 150
+  - 6500  # TODO: Weirdly gets all masked out
+
+# Interpolate to heights above ground rather than above sea-level
+above_ground: True  # TODO: ráv2 file does not have HGT. Support --height-from= argument for external file
 
 # Variables to include
 variables:
@@ -25,14 +29,10 @@ variables:
   #- wind_speed # TODO: derived variable
   #- wind_dir   # TODO: derived variable
   #- density    # TODO: derived variable
-  - U           # TODO: replace with U_true
-  - V           # TODO: replace with V_true
+  #- U           # TODO: replace with U_true  Needs to be destaggered west_east
+  #- V           # TODO: replace with V_true  Needs to be destaggered south_north
   - T
-  #- TKE_PBL    # TODO: uses bottom_top_stag
-
-# Store this many sigma levels for 3D variables, starting from bottom.
-# Comment out to store all sigma levels
-#sigma_limit: 5
+  - TKE_PBL
 
 # Whether to apply chunking to the variables of the output file.
 chunking: True

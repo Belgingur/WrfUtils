@@ -9,18 +9,25 @@ import argparse
 import logging.config
 import os
 import time
+from collections import namedtuple
 from typing import List, Dict, Any
 
 import numpy as np
 import yaml
 from netCDF4 import Dataset, Variable
 
-from utils import out_file_name, setup_logging, work_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, create_output_dataset
+from utils import out_file_name, setup_logging, work_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
+    create_output_dataset, g_inv
 
-LOG = logging.getLogger('belgingur.drop_digits')
+DIM_BOTTOM_TOP = 'bottom_top'
+DIM_BOTTOM_TOP_STAG = 'bottom_top_stag'
+
+LOG = logging.getLogger('belgingur.elevator')
 
 __EMPTY__ = '__EMPTY__'
 """ Magic empty value distinct from None. """
+
+np.set_printoptions(4, edgeitems=3, linewidth=200)
 
 
 def configure() -> (argparse.Namespace, dict):
@@ -39,28 +46,38 @@ def configure() -> (argparse.Namespace, dict):
     return args, config
 
 
-def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
+def resolve_input_variables(in_ds: Dataset, in_var_names: List[str]) -> List[Variable]:
     """
     Retrieves the variables from in_ds which we intend to copy to out_ds.
     """
-    includes = config.get('variables', ['T', 'wind_speed', 'wind_dir'])
     in_vars = []
     included_names = []
     excluded_names = []
     for var_name, in_var in in_ds.variables.items():
-        if var_name in includes:
+        if var_name in in_var_names:
             included_names.append(var_name)
             in_vars.append(in_var)
         else:
             excluded_names.append(var_name)
-    LOG.debug('Included variables: \n%s', '\n'.join(map(str, in_vars)))
+    LOG.debug('Included variables: %s', ', '.join(map(str, in_vars)))
     LOG.info('Excluded variables: %s', ', '.join(excluded_names) or '<none>')
 
-    unseen_vars = [var_name for var_name in includes if var_name not in included_names]
+    unseen_vars = [var_name for var_name in in_var_names if var_name not in included_names]
     if unseen_vars:
         LOG.warning('Missing variables in include list: %s', ', '.join(unseen_vars))
 
     return in_vars
+
+
+def resolve_input_dimensions(in_vars: List[Variable]) -> List[str]:
+    """ Return the list of names of dimensions used by the given list of dimensions """
+    in_dim_names = []  # type: List[str]
+    for in_var in in_vars:
+        for in_dim in in_var.dimensions:
+            if in_dim not in in_dim_names:
+                in_dim_names.append(in_dim)
+    LOG.info('Included dimensions: %s', ', '.join(map(str, in_dim_names)))
+    return in_dim_names
 
 
 def create_output_variables(out_ds: Dataset, in_vars: List[Variable],
@@ -71,11 +88,13 @@ def create_output_variables(out_ds: Dataset, in_vars: List[Variable],
         var_name = in_var.name
         LOG.info('    %- 10s', var_name)
 
-        data_type = in_var.datatype
+        dimensions = in_var.dimensions  # type: List[str]
+        if DIM_BOTTOM_TOP_STAG in dimensions:
+            dimensions = [d if d != DIM_BOTTOM_TOP_STAG else DIM_BOTTOM_TOP for d in dimensions]
         chunk_sizes = pick_chunk_sizes(in_var, max_k) if chunking else None
         out_var = out_ds.createVariable(in_var.name,
-                                        data_type,
-                                        dimensions=in_var.dimensions,
+                                        in_var.datatype,
+                                        dimensions=dimensions,
                                         zlib=comp_level > 0,
                                         complevel=comp_level,
                                         shuffle=True,
@@ -105,11 +124,12 @@ def create_output_dimensions(in_ds: Dataset, in_vars: List[Variable], out_ds: Da
     for dim_name, in_dim in in_ds.dimensions.items():
         if dim_name in need_dims:
             size = None if in_dim.isunlimited() else in_dim.size
-            # TODO: if dim_name == 'bottom_top':
-            #    # Reduce vertical dimension to the number of elevation levels
-            #    size = len(heights)
-            if dim_name == 'bottom_top_stag':
+            if dim_name == DIM_BOTTOM_TOP:
+                # Reduce vertical dimension to the number of elevation levels
+                size = len(heights)
+            if dim_name == DIM_BOTTOM_TOP_STAG:
                 # We will interpolate variables on this dimension to 'bottom_top'
+                # TODO: Make sure DIM_BOTTOM_TOP is included or we can get missing dimension error later
                 LOG.info('Dropping staggered vertical dimension %s', dim_name)
                 continue
             LOG.info('    %s (%s)', dim_name, size or 'unlimited')
@@ -122,15 +142,6 @@ def create_output_dimensions(in_ds: Dataset, in_vars: List[Variable], out_ds: Da
     LOG.info('Excluded dimensions: %s', ', '.join(excluded_names) or '<none>')
 
 
-def looks_planar(dim_name: str):
-    """
-    Determines whether a dimension with the given name is a planar dimension, i.e. east/west or north/south
-    """
-    return dim_name and \
-           'south' in dim_name or 'north' in dim_name or \
-           'west' in dim_name or 'east' in dim_name
-
-
 ############################################################
 # The main routine!
 
@@ -140,11 +151,11 @@ def main():
     args, config = configure()
     total_start_time = time.time()
     total_in_size = total_out_size = 0
-    heights = config.get('heights', None)
-    if not heights:
-        LOG.error('No heights configured in config file')
-        exit(1)
-    LOG.info('Interpolate variables to %s', heights)
+    heights = config.get('heights')
+    above_ground = bool(config.get('above_ground'))
+    LOG.info('Interpolate variables to %sm above %s',
+             'm, '.join(map(str, heights)),
+             'ground' if above_ground else 'sea-level')
     LOG.info('')
     for in_file in args.in_files:
         start_time = time.time()
@@ -180,9 +191,12 @@ def main():
 def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     LOG.info('Opening input dataset %s', in_file)
     in_ds = Dataset(in_file, 'r')
-    in_vars = resolve_input_variables(in_ds, config)
+    in_var_names = config.get('variables')
+    in_vars = resolve_input_variables(in_ds, in_var_names)
+    in_dim_names = resolve_input_dimensions(in_vars)
     dates = work_wrf_dates(in_ds.variables['Times'])
     heights = config.get('heights')  # type: List[int]
+    above_ground = bool(config.get('above_ground'))
 
     custom_attributes = config.get('custom_attributes', dict())
     out_ds = create_output_dataset(out_file, in_file, in_ds, custom_attributes)
@@ -192,11 +206,16 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     comp_level = config.get('complevel', 0)
     out_vars = create_output_variables(out_ds, in_vars, comp_level, chunking, len(heights))
 
-    LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
+    LOG.info('Processing data in chunks of %s time steps', CHUNK_SIZE_TIME)
     for c_start in range(0, len(dates), CHUNK_SIZE_TIME):
         c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
-        LOG.info('Chunk[%s..%s]: %s - %s', c_start, c_end - 1, dates[c_start], dates[c_end - 1])
-        LOG.info('    Variable            Min          Max  Dimensions')
+        LOG.info('Chunk[%s:%s]: %s - %s', c_start, c_end, dates[c_start], dates[c_end - 1])
+
+        inerpolator, interpolator_stag = build_interpolators(
+            heights, in_dim_names, in_ds, c_start, c_end, above_ground
+        )
+
+        LOG.info('Processing Variable     Input Dimensions')
         if c_start > 0 and c_end - c_start != CHUNK_SIZE_TIME:
             LOG.info('Last chunk is short')
         for in_var, out_var in zip(in_vars, out_vars):
@@ -205,19 +224,155 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
 
             if in_var.datatype == '|S1':
                 # Text data
-                LOG.info('    {:10}          N/A          N/A  {}'.format(in_var.name, dim_str))
+                LOG.info('    {:10}          {}'.format(in_var.name, dim_str))
             else:
                 # Numeric data
-                chunk_min, chunk_max = np.min(in_chunk), np.max(in_chunk)
-                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(in_var.name, chunk_min, chunk_max, dim_str))
+                if DIM_BOTTOM_TOP in in_var.dimensions:
+                    in_chunk = inerpolator(in_chunk)
+                elif DIM_BOTTOM_TOP_STAG in in_var.dimensions:
+                    in_chunk = interpolator_stag(in_chunk)
+                LOG.info('    {:10} {}'.format(in_var.name, dim_str))
 
-            out_var[c_start:c_end] = in_chunk[:]
+            out_var[c_start:c_end] = in_chunk
             out_ds.sync()
 
     # Close our datasets
     in_ds.close()
     out_ds.close()
     return out_file
+
+
+# Vertical Interpolation Constants
+VIC = namedtuple('VIC', 't_grid j_grid i_grid k_ce k_fl w_ce w_fl mask')
+
+
+class Interpolator(object):
+    # TODO: replace with a closure
+    def __init__(self, heights: List[float], vics: List[VIC]):
+        super().__init__()
+        if len(heights) != len(vics):
+            raise ValueError('heights and vics lists must be of same length')
+        self.heights = heights
+        self.vics = vics
+
+    def __call__(self, var: np.ndarray) -> np.ndarray:
+        return apply_vics(self.vics, var)
+
+
+def build_interpolators(heights: List[float], in_dims: List[str],
+                        ds: Dataset, t_start: int, t_end: int, above_ground: bool) -> (Interpolator, Interpolator):
+    """ Builds Interpolators for bottom_top and bottom_top_stag as needed according to in_dims. """
+    LOG.info('Generate Vertical Interpolation Constants')
+
+    PH = ds.variables['PH'][t_start:t_end]
+    PHB = ds.variables['PHB'][t_start:t_end]
+    z_stag = (PH + PHB) * g_inv  # PH and PHB are staggered
+
+    if above_ground:
+        HGT = ds.variables['HGT'][0, :, :]
+        LOG.info('HGT.shape: %s', HGT.shape)
+        z_stag -= HGT
+
+    LOG.info('heights: %s', heights)
+    interpolator_stag = None
+    if DIM_BOTTOM_TOP_STAG in in_dims:
+        LOG.info('    for %s', DIM_BOTTOM_TOP_STAG)
+        vics_stag = list(build_vic(h, z_stag) for h in heights)
+        interpolator_stag = Interpolator(heights, vics_stag)
+        z_stag_heights = interpolator_stag(z_stag)
+
+    interpolator = None
+    if DIM_BOTTOM_TOP in in_dims:
+        LOG.info('    for %s', DIM_BOTTOM_TOP)
+        z = 0.5 * (z_stag[:, 0:-1, :, :] + z_stag[:, 1:, :, :])  # de-stagger along k-axis
+        vics = list(build_vic(h, z) for h in heights)
+        interpolator = Interpolator(heights, vics)
+        z_heights = interpolator(z)
+
+    return interpolator, interpolator_stag
+
+
+def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
+    """
+    Builds interpolation indices and coefficients to vertically interpolate any variable for chunk of time-steps in a
+    wrfout file.
+
+    :param: target (m) Desired vertical height
+    :param: z[t,k,j,i] (m) geo-potential height of sigma fields
+    :param: terrain[j,i] (m) optional height of terrain. If given, interpolate above surface instead of sea level.
+
+    :return: 2D arrays for floor and ceiling indexes, 2D scalar fields for floor and ceiling weights
+    """
+
+    LOG.info('        %sm', target)
+
+    # Expected shape of variables with a flattened k-dimension
+    flatshape = z.shape[0:1] + (1,) + z.shape[2:]
+
+    # Build the complete indexing grids for dimensions t,j,i but flatten dimension k
+    t_size, k_size, j_size, i_size = z.shape
+    t_grid, k_grid, j_grid, i_grid = np.meshgrid(range(t_size), range(1), range(j_size), range(i_size), indexing='ij')
+    assert t_grid.shape == flatshape
+
+    # The ceiling index at [t,_,j,i] is the number of values in z[t,:,j,i] below or at target.
+    # We use <= so that if target is 0 then k_ce is 1 and not 0 so k_fl is not negative.
+    # We cap k_ce at t_size to avoid indexing errors. This will be masked out in w_ce later
+    k_ce = np.sum(z <= target, axis=1, keepdims=True)
+    k_ce = np.minimum(k_ce, t_size)
+    k_fl = k_ce - 1
+    assert k_ce.shape == flatshape
+    assert k_fl.shape == flatshape
+
+    # Retrieve the height of the sigma surface at the ceiling and floor indexes
+    z_ce = z[t_grid, k_ce, j_grid, i_grid]
+    z_fl = z[t_grid, k_fl, j_grid, i_grid]
+    assert z_ce.shape == flatshape
+    assert z_fl.shape == flatshape
+    # Interpolate ceiling weights and calculate floor weights
+    w_ce = (target - z_fl) / (z_ce - z_fl)
+    w_fl = 1 - w_ce
+    assert w_ce.shape == flatshape
+    assert w_fl.shape == flatshape
+
+    # z should now interpolate to exactly target.
+    # z_target = z_ce * w_ce + z_fl * w_fl
+    # assert z_target.shape == flatshape
+    # below = np.min(z_target - target)
+    # above = np.max(z_target - target)
+    # LOG.info('below, above: %s, %s', below, above)
+    # assert below > -0.01 or isinstance(below, np.ma.core.MaskedConstant)
+    # assert above < +0.01 or isinstance(above, np.ma.core.MaskedConstant)
+
+    # We mask out extrapolated points
+    mask = np.ma.mask_or(w_ce < 0, w_ce > 1, shrink=False)
+    if isinstance(mask, np.ndarray):
+        mask = mask[:, 0, :, :]
+    # LOG.info('mask:\n%s', mask)
+
+    return VIC(t_grid, j_grid, i_grid, k_ce, k_fl, w_ce, w_fl, mask)
+
+
+def apply_vic(vic: VIC, var: np.ndarray) -> np.ndarray:
+    # Get ceiling and floor values for all [t,j,i]
+    var_ce = var[vic.t_grid, vic.k_ce, vic.j_grid, vic.i_grid]
+    var_fl = var[vic.t_grid, vic.k_fl, vic.j_grid, vic.i_grid]
+
+    # Calculate weighed average and drop the empty k-dimension
+    var_lvl = var_ce * vic.w_ce + var_fl * vic.w_fl
+    var_lvl = np.squeeze(var_lvl, axis=1)
+
+    # Fill with NaN according to the mask
+    var_lvl[vic.mask] = np.nan
+    return var_lvl
+
+
+def apply_vics(vics, var) -> np.ndarray:
+    var_lvl_list = []
+    for vic in vics:
+        var_lvl = apply_vic(vic, var)
+        var_lvl_list.append(var_lvl)
+    var_lvls = np.stack(var_lvl_list, axis=1)
+    return var_lvls
 
 
 if __name__ == '__main__':
