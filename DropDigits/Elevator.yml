@@ -16,7 +16,7 @@ heights:
   - 80
   - 100
   - 150
-  - 6500  # TODO: Weirdly gets all masked out
+  #- 6500  # TODO: Weirdly gets all masked out
 
 # Interpolate to heights above ground rather than above sea-level
 above_ground: True  # TODO: ráv2 file does not have HGT. Support --height-from= argument for external file

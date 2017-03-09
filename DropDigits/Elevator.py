@@ -270,7 +270,6 @@ def build_interpolators(heights: List[float], in_dims: List[str],
 
     if above_ground:
         HGT = ds.variables['HGT'][0, :, :]
-        LOG.info('HGT.shape: %s', HGT.shape)
         z_stag -= HGT
 
     LOG.info('heights: %s', heights)
@@ -279,7 +278,7 @@ def build_interpolators(heights: List[float], in_dims: List[str],
         LOG.info('    for %s', DIM_BOTTOM_TOP_STAG)
         vics_stag = list(build_vic(h, z_stag) for h in heights)
         interpolator_stag = Interpolator(heights, vics_stag)
-        z_stag_heights = interpolator_stag(z_stag)
+        # z_stag_heights = interpolator_stag(z_stag)  # Should be similar to heights
 
     interpolator = None
     if DIM_BOTTOM_TOP in in_dims:
@@ -287,7 +286,7 @@ def build_interpolators(heights: List[float], in_dims: List[str],
         z = 0.5 * (z_stag[:, 0:-1, :, :] + z_stag[:, 1:, :, :])  # de-stagger along k-axis
         vics = list(build_vic(h, z) for h in heights)
         interpolator = Interpolator(heights, vics)
-        z_heights = interpolator(z)
+        #z_heights = interpolator(z)  # Should be similar to heights
 
     return interpolator, interpolator_stag
 
