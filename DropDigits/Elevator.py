@@ -10,6 +10,7 @@ import logging.config
 import os
 import time
 from collections import namedtuple
+from functools import reduce
 from typing import List, Dict, Any
 
 import numpy as np
@@ -303,10 +304,9 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
     :return: 2D arrays for floor and ceiling indexes, 2D scalar fields for floor and ceiling weights
     """
 
-    LOG.info('        %sm', target)
-
     # Expected shape of variables with a flattened k-dimension
     flatshape = z.shape[0:1] + (1,) + z.shape[2:]
+    flatsize = reduce(lambda x, y: x * y, flatshape)
 
     # Build the complete indexing grids for dimensions t,j,i but flatten dimension k
     t_size, k_size, j_size, i_size = z.shape
@@ -342,11 +342,15 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
     # assert below > -0.01 or isinstance(below, np.ma.core.MaskedConstant)
     # assert above < +0.01 or isinstance(above, np.ma.core.MaskedConstant)
 
-    # We mask out extrapolated points
+    # We mask out extrapolated point
     mask = np.ma.mask_or(w_ce < 0, w_ce > 1, shrink=False)
     if isinstance(mask, np.ndarray):
         mask = mask[:, 0, :, :]
-    # LOG.info('mask:\n%s', mask)
+    trues = np.count_nonzero(mask)
+    if trues:
+        LOG.warning('        %sm %0.0f%% masked', target, 100 * trues / flatsize)
+    else:
+        LOG.info('        %sm', target)
 
     return VIC(t_grid, j_grid, i_grid, k_ce, k_fl, w_ce, w_fl, mask)
 
