@@ -65,20 +65,19 @@ def pick_chunk_sizes(var: Variable, max_k: int = None) -> Tuple[int]:
     return chunk_sizes
 
 
-def work_wrf_dates(times: Iterable[np.ndarray]) -> np.ndarray:
+def read_wrf_dates(in_ds: Dataset) -> np.ndarray:
     """ Convert the WRF-style Times array from list of strings to a list of datetime objects. """
+    times = in_ds.variables['Times']  # type: Variable
     dates = []
     for t in times[:]:
-        tt = t.tostring()
-        if sys.version_info >= (3, 0):
-            tt = tt.decode()
+        tt = t.tostring().decode()
         dates.append(datetime.datetime.strptime(tt, '%Y-%m-%d_%H:%M:%S'))
     dates = np.array(dates)
     return dates
 
 
-def setup_logging(config_path: str = os.path.join(os.path.dirname(__file__), './logging.yml')):
-    with open(config_path) as configFile:
+def setup_logging(config_path: Path = Path(__file__).parent / 'logging.yml'):
+    with config_path.open() as configFile:
         logging_config = yaml.load(configFile)
         logging.config.dictConfig(logging_config)
         LOG.info('Configured logging from %s', config_path)

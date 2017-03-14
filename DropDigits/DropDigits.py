@@ -18,7 +18,7 @@ import numpy as np
 import yaml
 from netCDF4 import Dataset, Variable
 
-from utils import out_file_name, setup_logging, work_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
+from utils import out_file_name, setup_logging, read_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
     value_with_override, override_field, create_output_dataset
 
 LOG = logging.getLogger('belgingur.drop_digits')
@@ -279,11 +279,10 @@ def main():
 
 def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrides: Dict[str, Override]) -> int:
     LOG.info('Opening input dataset %s', in_file)
+    errors = 0
     in_ds = Dataset(in_file, 'r')
     in_vars = resolve_input_variables(in_ds, config)
-    errors = 0
-
-    dates = work_wrf_dates(in_ds.variables['Times'])
+    dates = read_wrf_dates(in_ds)
 
     LOG.info('Dimensional limits')
     dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)

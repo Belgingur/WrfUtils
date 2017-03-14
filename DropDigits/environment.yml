@@ -12,3 +12,6 @@ dependencies:
   # Scientific
   - numpy=1.11.*
   - netcdf4=1.2.2   # 1.2.4 has no ncdump! (2017.03.07)
+
+  # Development
+  - pytest=3.0.*
