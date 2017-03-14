@@ -62,7 +62,7 @@ def test_create_output_dimensions():
 
 def test_create_output_variables():
     in_ds = mock_africa_ds()
-    in_ds = Dataset(str(WRFOUT_AFRICA))
+    #in_ds = Dataset(str(WRFOUT_AFRICA))
 
     assert in_ds.variables['U'].datatype == 'float32'
 
@@ -70,12 +70,12 @@ def test_create_output_variables():
     out_var_names = ['U', 'V', 'T', 'TKE_PBL']
     create_output_variables(in_ds, out_ds, out_var_names, 7, True, 5)
     assert out_ds.createVariable.call_args_list == [
-        call('U', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('U', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('V', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('V', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('T', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('TKE_PBL', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True)
     ]
