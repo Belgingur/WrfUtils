@@ -5,7 +5,7 @@ import os
 import socket
 import sys
 from pathlib import Path
-from typing import Dict, Any, Iterable
+from typing import Dict, Any
 from typing import List, Tuple
 from typing import Union
 
@@ -186,3 +186,37 @@ def override_field(out_obj, name, override, in_obj):
     value = value_with_override(name, override, in_obj, __EMPTY__)
     if value is not __EMPTY__:
         setattr(out_obj, name, value)
+
+
+def destagger_array_by_dim(a: np.ndarray, dims: List[str], dim: str, *, log_indent=0) -> np.ndarray:
+    """
+    Destagger an array over a specified dimension if available
+    :param a: The array to de-stagger
+    :param dims: The list of dimensions that a spans
+    :param dim: The name of the dimension to destagger along, if it is in dims
+    """
+    if dim not in dims:
+        return a
+
+    LOG.info('%sdestagger on: %s', log_indent * ' ', dim)
+    axis = dims.index(dim)
+    return destagger_array(a, axis)
+
+
+def destagger_array(a: np.ndarray, axis: int) -> np.ndarray:
+    """
+    Staggers/destaggers an array along a given axis.
+    """
+    dims = len(a.shape)
+    slices0 = tuple(
+        slice(0, -1) if i == axis else slice(None)
+        for i in range(dims)
+    )
+    slices1 = tuple(
+        slice(1, None) if i == axis else slice(None)
+        for i in range(dims)
+    )
+    a0 = a.__getitem__(slices0)
+    a1 = a.__getitem__(slices1)
+    aa = 0.5 * a0 + 0.5 * a1
+    return aa

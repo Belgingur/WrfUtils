@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, call
 import numpy as np
 
 from Elevator import resolve_input_variables, resolve_input_dimensions, resolve_output_dimensions, \
-    create_output_dimensions, create_output_variables, build_interpolators, Interpolator
+    create_output_dimensions, create_output_variables, build_interpolators, Interpolator, destagger_dim_name
 from utils_testing import mock_dataset_meta, nda_from_string
 
 MY_DIR = Path(__file__).parent
@@ -116,6 +116,9 @@ def test_build_interpolators():
     assert type(ipor_alig) == Interpolator
     assert type(ipor_stag) == Interpolator
 
+    assert ipor_stag.max_k == 5
+    assert ipor_alig.max_k == 4  # Don't need 5th since 550m is completely masked out
+
     z_tgt = ipor_stag(z_stag)
 
     # 60m crosses sigma-0 and sigma-1
@@ -138,12 +141,17 @@ def test_build_interpolators():
     assert z_tgt[:, 2, 2, 2].tolist() == [550, 550, 550]
 
     t_tgt = ipor_alig(t)
-
-    print('z_tgt[:,-1]:', z_tgt[:, -1])
-    print('t_tgt[:,-1]:', t_tgt[:, -1])
-
     assert t_tgt[:, 0, 0, 0].tolist() == [-17.10787269681742, -17.40796311818944, -17.70822147651007]
     assert t_tgt[:, 1, 0, 0].tolist() == [-17.7, -18.1, -18.400000000000002]
 
     # 550m is completely masked out in the aligne interpolator
     assert np.sum(ipor_alig.vics[2].mask) == 48
+
+
+def test_destagger_name():
+    assert destagger_dim_name('west_east') == 'west_east'
+    assert destagger_dim_name('west_east_stag') == 'west_east'
+    assert destagger_dim_name('south_north') == 'south_north'
+    assert destagger_dim_name('south_north_stag') == 'south_north'
+    assert destagger_dim_name('bottom_top') == 'bottom_top'
+    assert destagger_dim_name('bottom_top_stag') == 'bottom_top'

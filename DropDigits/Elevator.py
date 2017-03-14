@@ -18,10 +18,12 @@ import yaml
 from netCDF4 import Dataset, Variable
 
 from utils import out_file_name, setup_logging, read_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    create_output_dataset, g_inv
+    create_output_dataset, g_inv, destagger_array, destagger_array_by_dim
 
 DIM_BOTTOM_TOP = 'bottom_top'
 DIM_BOTTOM_TOP_STAG = 'bottom_top_stag'
+DIM_WEST_EAST_STAG = 'west_east_stag'
+DIM_SOUTH_NORTH_STAG = 'south_north_stag'
 
 LOG = logging.getLogger('belgingur.elevator')
 
@@ -74,13 +76,13 @@ def resolve_output_dimensions(in_dim_names: List[str]) -> List[str]:
     """ Given a list of dimensions, create the list of matching de-staggered dimensions with duplicates removed. """
     out_dim_names = []  # type: List[str]
     for in_dim_name in in_dim_names:
-        out_dim_name = destagger_name(in_dim_name)
+        out_dim_name = destagger_dim_name(in_dim_name)
         if out_dim_name not in out_dim_names:
             out_dim_names.append(out_dim_name)
     return out_dim_names
 
 
-def destagger_name(in_dim_name):
+def destagger_dim_name(in_dim_name: str):
     """ Given a dimension name, returns the name of the un-staggered dimension. """
     if in_dim_name.endswith('_stag'):
         return in_dim_name[:-len('_stag')]
@@ -96,7 +98,7 @@ def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List
         LOG.info('    %- 10s', var_name)
         in_var = in_ds.variables[var_name]  # type: Variable
         in_dims = in_var.dimensions  # type: List[str]
-        out_dims = [destagger_name(d) for d in in_dims]
+        out_dims = [destagger_dim_name(d) for d in in_dims]
         chunk_sizes = pick_chunk_sizes(in_var, elevation_limit) if chunking else None
         out_var = out_ds.createVariable(in_var.name,
                                         in_var.datatype,
@@ -206,19 +208,41 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
 
         LOG.info('Processing Variable     Input Dimensions')
         for in_var, out_var in zip(in_vars, out_vars):
-            in_chunk = in_var[t_start:t_end]
-            dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
+            LOG.info('    %s', in_var.name)
 
             if in_var.datatype == '|S1':
                 # Text data
-                LOG.info('    {:10}          {}'.format(in_var.name, dim_str))
+                LOG.info('        text')
+                in_chunk = in_var[t_start:t_end]
             else:
                 # Numeric data
+
                 if DIM_BOTTOM_TOP in in_var.dimensions:
-                    in_chunk = ipor_alig(in_chunk)
+                    interpolator = ipor_alig
+                    interpolate_dim = DIM_BOTTOM_TOP
                 elif DIM_BOTTOM_TOP_STAG in in_var.dimensions:
-                    in_chunk = ipor_stag(in_chunk)
-                LOG.info('    {:10} {}'.format(in_var.name, dim_str))
+                    interpolator = ipor_stag
+                    interpolate_dim = DIM_BOTTOM_TOP_STAG
+                else:
+                    interpolator = None
+                    interpolate_dim = None
+
+                if interpolator:
+                    in_chunk = in_var[t_start:t_end, 0:interpolator.max_k + 1]
+                else:
+                    in_chunk = in_var[t_start:t_end]
+                in_shape = in_chunk.shape
+
+                in_chunk = destagger_array_by_dim(in_chunk, in_var.dimensions, DIM_SOUTH_NORTH_STAG, log_indent=8)
+                in_chunk = destagger_array_by_dim(in_chunk, in_var.dimensions, DIM_WEST_EAST_STAG, log_indent=8)
+
+                if interpolator:
+                    LOG.info('        interpolate on: %s', interpolate_dim)
+                    in_chunk = interpolator(in_chunk)
+                out_shape = in_chunk.shape
+
+                if in_shape != out_shape:
+                    LOG.info('        shape: %s -> %s', in_shape, out_shape)
 
             out_var[t_start:t_end] = in_chunk
             out_ds.sync()
@@ -254,6 +278,9 @@ class Interpolator(object):
         self.heights = heights
         self.vics = vics
 
+        self.max_k = max(np.max(v.k_ce) for v in vics)  # type: int
+        """ The highest k-index used for any interpolation level """
+
     def __call__(self, var: np.ndarray) -> np.ndarray:
         return apply_vics(self.vics, var)
 
@@ -275,7 +302,7 @@ def build_interpolators(
     interpolator = None
     if need_aligned:
         LOG.info('    for vertically aligned')
-        z = 0.5 * (z_stag[:, 0:-1, :, :] + z_stag[:, 1:, :, :])  # de-stagger along k-axis
+        z = destagger_array(z_stag, 1)
         vics = list(build_vic(tgt, z) for tgt in targets)
         interpolator = Interpolator(targets, vics)
         #z_heights = interpolator(z)  # Should be similar to heights

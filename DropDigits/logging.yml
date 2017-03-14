@@ -12,7 +12,7 @@ handlers:
   console:
     class: logging.StreamHandler
     level: DEBUG
-    formatter: complete
+    formatter: simple
     stream: ext://sys.stdout
 
 root:
