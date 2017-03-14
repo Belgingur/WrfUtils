@@ -11,7 +11,6 @@ import logging.config
 import os
 import time
 from collections import namedtuple
-from functools import reduce
 from typing import List, Dict, Any
 
 import numpy as np
@@ -196,19 +195,18 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     out_vars = create_output_variables(in_ds, out_ds, var_names, comp_level, chunking, len(heights))
 
     LOG.info('Processing data in chunks of %s time steps', CHUNK_SIZE_TIME)
-    for c_start in range(0, len(dates), CHUNK_SIZE_TIME):
-        c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
-        LOG.info('Chunk[%s:%s]: %s - %s', c_start, c_end, dates[c_start], dates[c_end - 1])
+    for t_start in range(0, len(dates), CHUNK_SIZE_TIME):
+        t_end = min(t_start + CHUNK_SIZE_TIME, len(dates))
+        LOG.info('Chunk[%s:%s]: %s - %s', t_start, t_end, dates[t_start], dates[t_end - 1])
 
-        inerpolator, interpolator_stag = build_interpolators(
-            heights, in_dim_names, in_ds, c_start, c_end, above_ground
-        )
+        need_aligned = DIM_BOTTOM_TOP in in_dim_names
+        need_staggered = DIM_BOTTOM_TOP_STAG in in_dim_names
+        z_stag = calc_z_stag(in_ds, t_start, t_end, above_ground)
+        ipor_alig, ipor_stag = build_interpolators(z_stag, heights, need_aligned, need_staggered)
 
         LOG.info('Processing Variable     Input Dimensions')
-        if c_start > 0 and c_end - c_start != CHUNK_SIZE_TIME:
-            LOG.info('Last chunk is short')
         for in_var, out_var in zip(in_vars, out_vars):
-            in_chunk = in_var[c_start:c_end]
+            in_chunk = in_var[t_start:t_end]
             dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
 
             if in_var.datatype == '|S1':
@@ -217,12 +215,12 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
             else:
                 # Numeric data
                 if DIM_BOTTOM_TOP in in_var.dimensions:
-                    in_chunk = inerpolator(in_chunk)
+                    in_chunk = ipor_alig(in_chunk)
                 elif DIM_BOTTOM_TOP_STAG in in_var.dimensions:
-                    in_chunk = interpolator_stag(in_chunk)
+                    in_chunk = ipor_stag(in_chunk)
                 LOG.info('    {:10} {}'.format(in_var.name, dim_str))
 
-            out_var[c_start:c_end] = in_chunk
+            out_var[t_start:t_end] = in_chunk
             out_ds.sync()
 
     # Close our datasets
@@ -230,6 +228,18 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     out_ds.close()
     return out_file
 
+
+def calc_z_stag(ds: Dataset, t_start: int, t_end: int, above_ground: bool):
+    PH = ds.variables['PH'][t_start:t_end]
+    PHB = ds.variables['PHB'][t_start:t_end]
+    z_stag = (PH + PHB) * g_inv  # PH and PHB are staggered
+
+    if above_ground:
+        HGT = ds.variables['HGT']
+        hgt = HGT[0]
+        z_stag -= hgt
+
+    return z_stag
 
 # Vertical Interpolation Constants
 VIC = namedtuple('VIC', 't_grid j_grid i_grid k_ce k_fl w_ce w_fl mask')
@@ -248,33 +258,26 @@ class Interpolator(object):
         return apply_vics(self.vics, var)
 
 
-def build_interpolators(heights: List[float], in_dims: List[str],
-                        ds: Dataset, t_start: int, t_end: int, above_ground: bool) -> (Interpolator, Interpolator):
+def build_interpolators(
+        z_stag: np.ndarray, targets: List[float], need_aligned: bool, need_staggered: bool
+) -> (Interpolator, Interpolator):
     """ Builds Interpolators for bottom_top and bottom_top_stag as needed according to in_dims. """
     LOG.info('Generate Vertical Interpolation Constants')
 
-    PH = ds.variables['PH'][t_start:t_end]
-    PHB = ds.variables['PHB'][t_start:t_end]
-    z_stag = (PH + PHB) * g_inv  # PH and PHB are staggered
-
-    if above_ground:
-        HGT = ds.variables['HGT'][0, :, :]
-        z_stag -= HGT
-
-    LOG.info('heights: %s', heights)
+    LOG.info('targets: %s', targets)
     interpolator_stag = None
-    if DIM_BOTTOM_TOP_STAG in in_dims:
-        LOG.info('    for %s', DIM_BOTTOM_TOP_STAG)
-        vics_stag = list(build_vic(h, z_stag) for h in heights)
-        interpolator_stag = Interpolator(heights, vics_stag)
+    if need_staggered:
+        LOG.info('    for vertically staggered')
+        vics_stag = list(build_vic(tgt, z_stag) for tgt in targets)
+        interpolator_stag = Interpolator(targets, vics_stag)
         # z_stag_heights = interpolator_stag(z_stag)  # Should be similar to heights
 
     interpolator = None
-    if DIM_BOTTOM_TOP in in_dims:
-        LOG.info('    for %s', DIM_BOTTOM_TOP)
+    if need_aligned:
+        LOG.info('    for vertically aligned')
         z = 0.5 * (z_stag[:, 0:-1, :, :] + z_stag[:, 1:, :, :])  # de-stagger along k-axis
-        vics = list(build_vic(h, z) for h in heights)
-        interpolator = Interpolator(heights, vics)
+        vics = list(build_vic(tgt, z) for tgt in targets)
+        interpolator = Interpolator(targets, vics)
         #z_heights = interpolator(z)  # Should be similar to heights
 
     return interpolator, interpolator_stag
@@ -294,7 +297,7 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
 
     # Expected shape of variables with a flattened k-dimension
     flatshape = z.shape[0:1] + (1,) + z.shape[2:]
-    flatsize = reduce(lambda x, y: x * y, flatshape)
+    flatsize = z.size / z.shape[1]
 
     # Build the complete indexing grids for dimensions t,j,i but flatten dimension k
     t_size, k_size, j_size, i_size = z.shape
@@ -305,7 +308,7 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
     # We use <= so that if target is 0 then k_ce is 1 and not 0 so k_fl is not negative.
     # We cap k_ce at t_size to avoid indexing errors. This will be masked out in w_ce later
     k_ce = np.sum(z <= target, axis=1, keepdims=True)
-    k_ce = np.minimum(k_ce, t_size)
+    k_ce = np.minimum(k_ce, k_size - 1)
     k_fl = k_ce - 1
     assert k_ce.shape == flatshape
     assert k_fl.shape == flatshape

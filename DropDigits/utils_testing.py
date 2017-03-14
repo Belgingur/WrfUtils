@@ -97,7 +97,7 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
         dim.name = name
         dim.size = None if size == 'UNLIMITED' else int(size)
         dim.isunlimited = (lambda self: lambda: self.size is None)(dim)  # binding self to dim
-        dim.__repr__ = lambda self: 'Dim: {} = {}'.format(dim.name, dim.size)
+        dim.__repr__ = lambda self: 'MockDim: {} = {}'.format(dim.name, dim.size)
         LOG.debug('%s', dim)
         return dim
 
@@ -125,7 +125,7 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
         var.name = name
         var.datatype = np.dtype(DATATYPE_MAP.get(datatype, datatype))
         var.dimensions = tuple(dimensions.split(', '))
-        var.__repr__ = lambda self: 'Var: {} {}{}'.format(self.datatype, self.name, self.dimensions)
+        var.__repr__ = lambda self: 'MockVar: {} {}{}'.format(self.datatype, self.name, self.dimensions)
         LOG.debug('%s', var)
         add_var_attribs(var, lines)
         return var
@@ -165,3 +165,30 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
                 pass
 
     return ds
+
+
+def nda_to_code(name: str, nda: np.ndarray, digits: int = 0):
+    """
+    Writes a numpy array as a compact call to nda_from_string which can be pasted into code to recreate it.
+
+    :param name: Name of variable to create
+    :param nda: numpy array to write out
+    :param digits: Number of digits to keep
+    """
+    shape = nda.shape
+    nda = nda.ravel().tolist()
+    mul = 10 ** (-digits)
+    nda = [str(int(x / mul + 0.5)) for x in nda]
+    s = ' '.join(nda)
+    print('{} = nda_from_string({}, {}, \'{}\')'.format(name, shape, digits, s))
+
+
+def nda_from_string(shape, digits, s):
+    a = s.split(' ')
+    a = np.array(a, dtype=np.float)
+    a = a.reshape(*shape)
+    a = a * 10 ** (-digits)
+    # print(len(s), '->', a.shape)
+    return a
+
+
