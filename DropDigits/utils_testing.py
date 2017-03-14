@@ -123,7 +123,7 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
     def add_var(lines: PushableIterator[str], datatype: str, name: str, dimensions: str):
         var = vars[name] = MagicMock()
         var.name = name
-        var.datatype = DATATYPE_MAP.get(datatype, datatype)
+        var.datatype = np.dtype(DATATYPE_MAP.get(datatype, datatype))
         var.dimensions = tuple(dimensions.split(', '))
         var.__repr__ = lambda self: 'Var: {} {}{}'.format(self.datatype, self.name, self.dimensions)
         LOG.debug('%s', var)

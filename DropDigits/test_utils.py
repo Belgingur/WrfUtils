@@ -34,7 +34,7 @@ def test_mock_dataset_africa():
     dsa = mock_dataset_meta(WRFOUT_AFRICA_DUMP)
 
     # Uncomment to verify that tets pass against a real Dataet
-    # dsa = Dataset('wrfout-africa-50.nc')
+    # dsa = Dataset(str(WRFOUT_AFRICA))
 
     assert dsa is not None
     assert dsa.START_DATE == '2016-10-24_06:00:00'
@@ -53,6 +53,8 @@ def test_mock_dataset_africa():
 
     T = dsa.variables['T']
     assert T.dimensions == ('Time', 'bottom_top', 'south_north', 'west_east')
+    assert T.datatype == np.dtype('float32')  # Yes, all of these are true
+    assert T.datatype == np.float32
     assert T.datatype == 'float32'
     assert T.units == 'K'
 

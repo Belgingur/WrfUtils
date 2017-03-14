@@ -62,9 +62,6 @@ def test_create_output_dimensions():
 
 def test_create_output_variables():
     in_ds = mock_africa_ds()
-    #in_ds = Dataset(str(WRFOUT_AFRICA))
-
-    assert in_ds.variables['U'].datatype == 'float32'
 
     out_ds = MagicMock()
     out_var_names = ['U', 'V', 'T', 'TKE_PBL']
