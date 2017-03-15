@@ -196,8 +196,8 @@ def pressure(P, PB):
 
 
 @derived(
+    units='K',
     datatype=np.uint16,
-    units='K'
 )
 def potential_temperature(T):
     return T + 300.
@@ -205,12 +205,10 @@ def potential_temperature(T):
 
 @derived(
     datatype=np.uint16,
-    units='K'
+    units='°C'
 )
 def temperature(potential_temperature, pressure):
     return potential_temperature * (pressure / 100000.0) ** 0.2856
-
-
 
 
 @derived(
@@ -219,5 +217,3 @@ def temperature(potential_temperature, pressure):
 )
 def density(ALT):
     return 1/ALT
-
-
