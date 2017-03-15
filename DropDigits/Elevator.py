@@ -158,20 +158,20 @@ def main():
         out_size = os.path.getsize(out_file)
         total_in_size += in_size
         total_out_size += out_size
-        out_percent = (100.0 * out_size / in_size)
+        out_percent = (100 * out_size / in_size)
         LOG.info('Size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:0.1f} s'.format(
-            in_size / 1024.0,
-            out_size / 1024.0,
+            in_size / 1024,
+            out_size / 1024,
             out_percent,
             time.time() - start_time
         ))
         LOG.info('')
 
     if len(args.in_files) > 1:
-        total_out_percent = (100.0 * total_out_size / total_in_size)
+        total_out_percent = (100 * total_out_size / total_in_size)
         LOG.info('Total size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:.1f} s'.format(
-            total_in_size / 1024.0,
-            total_out_size / 1024.0,
+            total_in_size / 1024,
+            total_out_size / 1024,
             total_out_percent,
             time.time() - total_start_time,
         ))
