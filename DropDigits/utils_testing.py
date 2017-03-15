@@ -61,8 +61,8 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
         header_path = Path(*header_path)
 
     ds = MagicMock()
-    dims = ds.dimensions = {}  # type: Dict[str, Union[Dimension MagicMock]]
-    vars = ds.variables = {}  # type: Dict[str, Union[Variable, MagicMock]]
+    dims = {}  # type: Dict[str, Union[Dimension MagicMock]]
+    vars = {}  # type: Dict[str, Union[Variable, MagicMock]]
 
     DATATYPE_MAP = dict(
         float='float32',
@@ -93,7 +93,7 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
         return v
 
     def add_dim(name: str, size: str):
-        dims[name] = dim = MagicMock()
+        dims[name] = dim = MagicMock(name=name)
         dim.name = name
         dim.size = None if size == 'UNLIMITED' else int(size)
         dim.isunlimited = (lambda self: lambda: self.size is None)(dim)  # binding self to dim
@@ -121,7 +121,7 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
             LOG.debug('     %s = %s', att_name, att_value)
 
     def add_var(lines: PushableIterator[str], datatype: str, name: str, dimensions: str):
-        var = vars[name] = MagicMock()
+        var = vars[name] = MagicMock(name=name)
         var.name = name
         var.datatype = np.dtype(DATATYPE_MAP.get(datatype, datatype))
         var.dimensions = tuple(dimensions.split(', '))
@@ -152,6 +152,11 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
         lines = PushableIterator(lines)
         line = next(lines)
         wrfout_name = RE_HEADER.match(line).group(1)
+
+        ds = MagicMock(name=wrfout_name)
+        ds.dimensions = dims
+        ds.variables = vars
+
         LOG.debug('Mocking wrfout file: %s', wrfout_name)
         for line in lines:
             if RE_HEADER_DIMENSIONS.match(line):

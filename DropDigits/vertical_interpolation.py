@@ -8,7 +8,7 @@ from typing import List
 
 import numpy as np
 
-from utils import destagger_array
+from utils import destagger_array, DIM_BOTTOM_TOP_STAG, DIM_BOTTOM_TOP
 
 LOG = logging.getLogger('belgingur.elevator')
 
@@ -17,16 +17,19 @@ VIC = namedtuple('VIC', 't_grid j_grid i_grid k_ce k_fl w_ce w_fl mask')
 
 
 class Interpolator(object):
-    # TODO: replace with a closure
-    def __init__(self, heights: List[float], vics: List[VIC]):
+    def __init__(self, heights: List[float], vics: List[VIC], dimension: str):
         super().__init__()
         if len(heights) != len(vics):
             raise ValueError('heights and vics lists must be of same length')
-        self.heights = heights
+        self.heights = tuple(heights)
         self.vics = vics
+        self.dimension = dimension
 
         self.max_k = max(np.max(v.k_ce) for v in vics)  # type: int
         """ The highest k-index used for any interpolation level """
+
+    def __repr__(self, *args, **kwargs):
+        return 'Interpolator[{}: {}]'.format(self.dimension, self.heights)
 
     def __call__(self, var: np.ndarray) -> np.ndarray:
         return apply_vics(self.vics, var)
@@ -43,7 +46,7 @@ def build_interpolators(
     if need_staggered:
         LOG.info('    for vertically staggered')
         vics_stag = list(build_vic(tgt, z_stag) for tgt in targets)
-        interpolator_stag = Interpolator(targets, vics_stag)
+        interpolator_stag = Interpolator(targets, vics_stag, DIM_BOTTOM_TOP_STAG)
         # z_stag_heights = interpolator_stag(z_stag)  # Should be similar to heights
 
     interpolator = None
@@ -51,7 +54,7 @@ def build_interpolators(
         LOG.info('    for vertically aligned')
         z = destagger_array(z_stag, 1)
         vics = list(build_vic(tgt, z) for tgt in targets)
-        interpolator = Interpolator(targets, vics)
+        interpolator = Interpolator(targets, vics, DIM_BOTTOM_TOP)
         # z_heights = interpolator(z)  # Should be similar to heights
 
     return interpolator, interpolator_stag

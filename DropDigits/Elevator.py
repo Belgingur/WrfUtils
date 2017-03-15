@@ -16,14 +16,10 @@ import numpy as np
 import yaml
 from netCDF4 import Dataset, Variable
 
+from calculators import ChunkCalculator
 from utils import out_file_name, setup_logging, read_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    create_output_dataset, g_inv, destagger_array_by_dim
+    create_output_dataset, g_inv, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
 from vertical_interpolation import build_interpolators
-
-DIM_BOTTOM_TOP = 'bottom_top'
-DIM_BOTTOM_TOP_STAG = 'bottom_top_stag'
-DIM_WEST_EAST_STAG = 'west_east_stag'
-DIM_SOUTH_NORTH_STAG = 'south_north_stag'
 
 LOG = logging.getLogger('belgingur.elevator')
 
@@ -180,8 +176,8 @@ def main():
 def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     LOG.info('Opening input dataset %s', in_file)
     in_ds = Dataset(in_file, 'r')
-    var_names = config.get('variables')
-    in_vars = resolve_input_variables(in_ds, var_names)
+    out_var_names = config.get('variables')
+    in_vars = resolve_input_variables(in_ds, out_var_names)
     in_dim_names = resolve_input_dimensions(in_vars)
     out_dim_names = resolve_output_dimensions(in_dim_names)
     dates = read_wrf_dates(in_ds)
@@ -194,7 +190,7 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
 
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
-    out_vars = create_output_variables(in_ds, out_ds, var_names, comp_level, chunking, len(heights))
+    create_output_variables(in_ds, out_ds, out_var_names, comp_level, chunking, len(heights))
 
     chunk_size = CHUNK_SIZE_TIME // 4
     LOG.info('Processing data in chunks of %s time steps', chunk_size)
@@ -206,46 +202,12 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
         need_staggered = DIM_BOTTOM_TOP_STAG in in_dim_names
         z_stag = calc_z_stag(in_ds, t_start, t_end, above_ground)
         ipor_alig, ipor_stag = build_interpolators(z_stag, heights, need_aligned, need_staggered)
+        cc = ChunkCalculator(in_ds, t_start, t_end, ipor_alig, ipor_stag)
 
         LOG.info('Processing Variable     Input Dimensions')
-        for in_var, out_var in zip(in_vars, out_vars):
-            LOG.info('    %s', in_var.name)
-
-            if in_var.datatype == '|S1':
-                # Text data
-                LOG.info('        text')
-                in_chunk = in_var[t_start:t_end]
-            else:
-                # Numeric data
-
-                if DIM_BOTTOM_TOP in in_var.dimensions:
-                    interpolator = ipor_alig
-                    interpolate_dim = DIM_BOTTOM_TOP
-                elif DIM_BOTTOM_TOP_STAG in in_var.dimensions:
-                    interpolator = ipor_stag
-                    interpolate_dim = DIM_BOTTOM_TOP_STAG
-                else:
-                    interpolator = None
-                    interpolate_dim = None
-
-                if interpolator:
-                    in_chunk = in_var[t_start:t_end, 0:interpolator.max_k + 1]
-                else:
-                    in_chunk = in_var[t_start:t_end]
-                in_shape = in_chunk.shape
-
-                in_chunk = destagger_array_by_dim(in_chunk, in_var.dimensions, DIM_SOUTH_NORTH_STAG, log_indent=8)
-                in_chunk = destagger_array_by_dim(in_chunk, in_var.dimensions, DIM_WEST_EAST_STAG, log_indent=8)
-
-                if interpolator:
-                    LOG.info('        interpolate on: %s', interpolate_dim)
-                    in_chunk = interpolator(in_chunk)
-                out_shape = in_chunk.shape
-
-                if in_shape != out_shape:
-                    LOG.info('        shape: %s -> %s', in_shape, out_shape)
-
-            out_var[t_start:t_end] = in_chunk
+        for out_var_name in out_var_names:
+            LOG.info('    %s', out_var_name)
+            out_ds.variables[out_var_name][t_start:t_end] = cc(out_var_name)
             out_ds.sync()
 
     # Close our datasets

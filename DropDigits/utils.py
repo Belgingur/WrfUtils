@@ -24,6 +24,12 @@ g_inv = 1. / g  # [s²/m]
 __EMPTY__ = '__EMPTY__'
 """ Magic empty value distinct from None. """
 
+# Dimension names
+DIM_BOTTOM_TOP = 'bottom_top'
+DIM_BOTTOM_TOP_STAG = 'bottom_top_stag'
+DIM_WEST_EAST_STAG = 'west_east_stag'
+DIM_SOUTH_NORTH_STAG = 'south_north_stag'
+
 # We work with temporal data in chunks of this many steps
 CHUNK_SIZE_TIME = 128
 
