@@ -196,9 +196,10 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     comp_level = config.get('complevel', 0)
     out_vars = create_output_variables(in_ds, out_ds, var_names, comp_level, chunking, len(heights))
 
-    LOG.info('Processing data in chunks of %s time steps', CHUNK_SIZE_TIME)
-    for t_start in range(0, len(dates), CHUNK_SIZE_TIME):
-        t_end = min(t_start + CHUNK_SIZE_TIME, len(dates))
+    chunk_size = CHUNK_SIZE_TIME // 4
+    LOG.info('Processing data in chunks of %s time steps', chunk_size)
+    for t_start in range(0, len(dates), chunk_size):
+        t_end = min(t_start + chunk_size, len(dates))
         LOG.info('Chunk[%s:%s]: %s - %s', t_start, t_end, dates[t_start], dates[t_end - 1])
 
         need_aligned = DIM_BOTTOM_TOP in in_dim_names
