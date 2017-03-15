@@ -10,13 +10,15 @@ import argparse
 import logging.config
 import os
 import time
+from collections import OrderedDict
+from types import FunctionType
 from typing import List, Dict, Any
 
 import numpy as np
 import yaml
 from netCDF4 import Dataset, Variable
 
-from calculators import ChunkCalculator
+from calculators import ChunkCalculator, CALCULATORS
 from utils import out_file_name, setup_logging, read_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
     create_output_dataset, g_inv, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
 from vertical_interpolation import build_interpolators
@@ -86,18 +88,30 @@ def destagger_dim_name(in_dim_name: str):
         return in_dim_name
 
 
-def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List[str],
+def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List[str], calculators: Dict[str, Any],
                             comp_level: int, chunking: bool, elevation_limit: int) -> List[Variable]:
     LOG.info('Create output variables with:')
     out_vars = []
     for var_name in out_var_names:
-        LOG.info('    %- 10s', var_name)
-        in_var = in_ds.variables[var_name]  # type: Variable
-        in_dims = in_var.dimensions  # type: List[str]
-        out_dims = [destagger_dim_name(d) for d in in_dims]
-        chunk_sizes = pick_chunk_sizes(in_var, elevation_limit) if chunking else None
-        out_var = out_ds.createVariable(in_var.name,
-                                        in_var.datatype,
+        # Pick either an input ariable or a calculator function to create a variable for
+        # We have given the calculator functions just enough attributes that either will work below
+        if var_name in in_ds.variables:
+            source = in_ds.variables[var_name]  # type: Variable
+            out_dims = tuple(destagger_dim_name(d) for d in source.dimensions)
+        elif var_name in calculators:
+            source = calculators[var_name]
+            out_dims = source.dimensions
+        else:
+            raise ValueError('Unknown variable %s', var_name)
+
+        sf = getattr(source, 'scale_factor', 1)
+        off = getattr(source, 'add_offset', 0)
+        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(out_dims), source.datatype, sf, off)
+
+        ndims = len(source.dimensions)
+        chunk_sizes = pick_chunk_sizes(ndims, elevation_limit) if chunking else None
+        out_var = out_ds.createVariable(var_name,
+                                        source.datatype,
                                         dimensions=out_dims,
                                         zlib=comp_level > 0,
                                         complevel=comp_level,
@@ -107,7 +121,7 @@ def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List
                 'description', 'least_significant_digit', 'scale_factor', 'add_offset',
                 'FieldType', 'MemoryOrder', 'units', 'stagger', 'coordinates',
         ):
-            value = getattr(in_var, field, None)
+            value = getattr(source, field, None)
             if value is not None:
                 setattr(out_var, field, value)
         out_vars.append(out_var)
@@ -126,6 +140,7 @@ def create_output_dimensions(in_ds: Dataset, out_ds: Dataset, out_dim_names: Lis
             size = max_k
         LOG.info('    %s (%s)', dim_name, size or 'unlimited')
         out_ds.createDimension(dim_name, size)
+
 
 ############################################################
 # The main routine!
@@ -177,9 +192,9 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     LOG.info('Opening input dataset %s', in_file)
     in_ds = Dataset(in_file, 'r')
     out_var_names = config.get('variables')
-    in_vars = resolve_input_variables(in_ds, out_var_names)
-    in_dim_names = resolve_input_dimensions(in_vars)
-    out_dim_names = resolve_output_dimensions(in_dim_names)
+
+    in_dim_names, out_dim_names = resolve_dimensions(in_ds, CALCULATORS, out_var_names)
+
     dates = read_wrf_dates(in_ds)
     heights = config.get('heights')  # type: List[int]
     above_ground = bool(config.get('above_ground'))
@@ -190,7 +205,7 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
 
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
-    create_output_variables(in_ds, out_ds, out_var_names, comp_level, chunking, len(heights))
+    create_output_variables(in_ds, out_ds, out_var_names, CALCULATORS, comp_level, chunking, len(heights))
 
     chunk_size = CHUNK_SIZE_TIME // 4
     LOG.info('Processing data in chunks of %s time steps', chunk_size)
@@ -204,7 +219,7 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
         ipor_alig, ipor_stag = build_interpolators(z_stag, heights, need_aligned, need_staggered)
         cc = ChunkCalculator(in_ds, t_start, t_end, ipor_alig, ipor_stag)
 
-        LOG.info('Processing Variable     Input Dimensions')
+        LOG.info('Processing Variable')
         for out_var_name in out_var_names:
             LOG.info('    %s', out_var_name)
             out_ds.variables[out_var_name][t_start:t_end] = cc(out_var_name)
@@ -215,6 +230,35 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
     out_ds.close()
     return out_file
 
+
+def resolve_dimensions(
+        in_ds: Dataset, calculators: Dict[str, FunctionType], out_var_names: List[str]
+) -> (List[str], List[str]):
+    in_dim_names = OrderedDict()  # type: OrderedDict[str, str]
+    out_dim_names = OrderedDict()  # type: OrderedDict[str, str]
+    vars = in_ds.variables  # type: Dict[str, Variable]
+    _ = 'X'
+
+    def add_var(var_name, add_out, indent=0):
+        if var_name in vars:
+            for in_dim_name in vars[var_name].dimensions:
+                in_dim_names[in_dim_name] = _
+                if add_out:
+                    out_dim_name = destagger_dim_name(in_dim_name)
+                    out_dim_names[out_dim_name] = _
+
+        elif var_name in calculators:
+            calc = calculators[var_name]
+            if add_out:
+                for out_dim_name in calc.dimensions:
+                    out_dim_names[out_dim_name] = _
+            for in_var_name in calc.inputs:
+                add_var(in_var_name, False, indent + 1)
+
+    for out_var_name in out_var_names:
+        add_var(out_var_name, True)
+
+    return list(in_dim_names.keys()), list(out_dim_names.keys())
 
 def calc_z_stag(ds: Dataset, t_start: int, t_end: int, above_ground: bool):
     PH = ds.variables['PH'][t_start:t_end]

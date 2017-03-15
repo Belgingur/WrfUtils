@@ -59,12 +59,11 @@ TYPE_RANGE = dict(
 TYPE_RANGE[None] = None
 
 
-def pick_chunk_sizes(var: Variable, max_k: int = None) -> Tuple[int]:
+def pick_chunk_sizes(ndim: int, max_k: int = None) -> Tuple[int]:
     """
     Given a variable, pick the appropriate chunk sizes to apply to it given it's shape
     """
-    in_shape = var.shape
-    chunk_sizes = CHUNK_SIZES[len(in_shape) - 1]
+    chunk_sizes = CHUNK_SIZES[ndim - 1]
     if max_k is not None and len(chunk_sizes) >= 4:
         # Don't make a chunk taller than the dimension
         chunk_sizes = tuple(s if i != 1 else max_k for i, s in enumerate(chunk_sizes))
@@ -204,7 +203,7 @@ def destagger_array_by_dim(a: np.ndarray, dims: List[str], dim: str, *, log_inde
     if dim not in dims:
         return a
 
-    LOG.info('%sdestagger on: %s', log_indent * ' ', dim)
+    #LOG.info('%sdestagger on: %s', log_indent * ' ', dim)
     axis = dims.index(dim)
     return destagger_array(a, axis)
 

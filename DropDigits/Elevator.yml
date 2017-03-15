@@ -25,21 +25,28 @@ above_ground: True  # TODO: Support --geo-from= argument to read HGT, XLAT, XLON
 
 # Variables to include
 variables:
+  # Shape of model space
   - Times
-  - U           # TODO: replace with U_true  Needs to be destaggered west_east
-  - V           # TODO: replace with V_true  Needs to be destaggered south_north
-  - T
-  - TKE_PBL
-  - XLAT
-  - XLONG
-
-#derived:       # Support well known derived variables
+  #- XLAT       # TODO: Not present in some test data
+  #- XLONG
   #- height     # TODO: Write the heights array above as a 1-D variable
-  #- U_true     # TODO: derived variable
-  #- V_true     # TODO: derived variable
-  #- wind_speed # TODO: derived variable
-  #- wind_dir   # TODO: derived variable
-  #- density    # TODO: derived variable
+
+  # Native variables
+  #- U           # replaced by U_true in earth co-ordinates
+  #- V           # replaced by V_true in earth co-ordinates
+  #- T           # replaced by temp which is real temperature
+  - TKE_PBL
+
+  # Derived variables
+  - temperature
+  - U_true
+  - V_true
+  - wind_speed
+  - wind_dir
+  - density
+
+# Whether to terminate processing if an input variable is missing
+# terminate_on_missing: False  # TODO: Not implemented
 
 # Whether to apply chunking to the variables of the output file.
 chunking: True

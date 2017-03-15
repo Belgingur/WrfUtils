@@ -3,8 +3,8 @@ from pathlib import Path
 from types import FunctionType
 from unittest.mock import MagicMock, call, patch
 
-from calculators import CALCULATORS, ChunkCalculator
-from utils import DIM_BOTTOM_TOP
+from calculators import CALCULATORS, ChunkCalculator, derived
+from utils import DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
 from utils_testing import mock_dataset_meta
 
 MY_DIR = Path(__file__).parent
@@ -107,3 +107,72 @@ def test_calculator_native_staggered():
         ]
         # Returned the interpolated value
         assert U is U_INTERPOLATED
+
+
+def test_calculator_derived():
+    in_ds = mock_africa_ds()
+    ipor_stag = MagicMock(name='ipor_stag')  # Unused
+    ipor_stag.dimension = DIM_BOTTOM_TOP_STAG
+    ipor_stag.max_k = 5
+
+    ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
+    ipor_alig.dimension = DIM_BOTTOM_TOP
+    ipor_alig.max_k = 6
+
+    with patch('utils.destagger_array') as destagger_array:
+        VAR_U = in_ds.variables['U'].__getitem__.return_value
+        VAR_U.shape = (7, 10, 80, 71)
+        VAR_U.destagger_3.shape = (7, 10, 80, 70)
+        VAR_U.destagger_3.ipor_alig.shape = (7, 3, 80, 70)
+
+        VAR_V = in_ds.variables['V'].__getitem__.return_value
+        VAR_V.shape = (7, 10, 81, 70)
+        VAR_V.destagger_2.shape = (7, 10, 80, 70)
+        VAR_V.destagger_2.ipor_alig.shape = (7, 3, 80, 70)
+
+        destagger_array.side_effect = lambda var, axis, **kw: getattr(var, 'destagger_'+str(axis))
+        ipor_alig.side_effect = lambda var: var.ipor_alig
+        ipor_stag.side_effect = lambda var: var.ipor_stag
+
+        MOCK_RESULT = MagicMock(name='MOCK_RESULT')
+        MOCK_MOCK_RESULT = MagicMock(name='MOCK_MOCK_RESULT')
+
+        @derived('Time', 'bottom_top', 'west_east', 'south_north')
+        def mock(U, V, mock_mock):
+            LOG.info('U: %s', U)
+            LOG.info('V: %s', V)
+            LOG.info('mock_mock: %s', mock_mock)
+            assert U == VAR_U.destagger_3.ipor_alig
+            assert V == VAR_V.destagger_2.ipor_alig
+            assert mock_mock is MOCK_MOCK_RESULT
+            return MOCK_RESULT
+
+        @derived('Time', 'bottom_top', 'west_east', 'south_north')
+        def mock_mock(U):
+            LOG.info('U: %s', U)
+            assert U == VAR_U.destagger_3.ipor_alig
+            return MOCK_MOCK_RESULT
+
+        # Make the call
+        c = ChunkCalculator(in_ds, 32, 64, ipor_alig, ipor_stag)
+        MR = c('mock')
+
+        # Retrieved data
+        assert in_ds.variables['U'].__getitem__.call_args_list == [
+            call((
+                slice(32, 64),  # Time slice
+                slice(0, 7),  # Vertical slice
+            )),
+        ]
+        # Destagger U along the west_east axis
+        assert destagger_array.call_args_list == [
+            call(VAR_U, 3),
+            call(VAR_V, 2),
+        ]
+        # Interpolated on bottom_top
+        assert ipor_alig.call_args_list == [
+            call(VAR_U.destagger_3),
+            call(VAR_V.destagger_2),
+        ]
+        # Returned the interpolated value
+        assert MR is MOCK_RESULT
