@@ -292,7 +292,7 @@ def potential_temperature(T):
 
 @derived(
     datatype=np.uint16,
-    units='°C'
+    units='K'
 )
 def temperature(potential_temperature, pressure):
     return potential_temperature * (pressure / 100000.0) ** 0.2856
