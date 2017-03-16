@@ -1,6 +1,6 @@
 
 # Whether to include variables by default.
-default_include: False
+hdefault_include: True
 
 # Pattern for output filename suitable for python's format function.
 # Available variables:
