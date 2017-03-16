@@ -60,6 +60,18 @@ TYPE_RANGE = dict(
 TYPE_RANGE[None] = None
 
 
+def memoize(f):
+    """ Very simple memoization decorator """
+    memo = {}
+
+    def helper(x):
+        if x not in memo:
+            memo[x] = f(x)
+        return memo[x]
+
+    return helper
+
+
 def pick_chunk_sizes(dimensions: List[str], max_k: int = None) -> Tuple[int]:
     """
     Given a variable, pick the appropriate chunk sizes to apply to it given it's shape

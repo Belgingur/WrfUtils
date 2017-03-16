@@ -3,10 +3,9 @@ from pathlib import Path
 
 import numpy as np
 
-from Elevator import build_interpolators
-from utils import DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
+from utils import DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG, destagger_array
 from utils_testing import nda_from_string
-from vertical_interpolation import Interpolator
+from vertical_interpolation import Interpolator, build_interpolator
 
 MY_DIR = Path(__file__).parent
 TEST_DIR = MY_DIR / 'test_data'
@@ -59,44 +58,45 @@ def test_init():
     assert min_max_round(DATA_Z_STAG[:, 5, :, :]) == (507.6, 554.1)  # Partially contains 550
 
 
-def test_build_interpolators():
-
+def test_build_interpolator_stag():
     targets = [60, 350, 550]
-    ipor_alig, ipor_stag = build_interpolators(DATA_Z_STAG, targets, True, True)
+    ipor = build_interpolator(DATA_Z_STAG, targets, True)
+    assert type(ipor) == Interpolator
+    assert ipor.dimension == DIM_BOTTOM_TOP_STAG
+    assert ipor.max_k == 5
+    assert str(ipor) == 'Interpolator[bottom_top_stag: (60, 350, 550)]'
 
-    assert type(ipor_alig) == Interpolator
-    assert type(ipor_stag) == Interpolator
 
-    assert ipor_alig.dimension == DIM_BOTTOM_TOP
-    assert ipor_stag.dimension == DIM_BOTTOM_TOP_STAG
-
-    assert ipor_stag.max_k == 5
-    assert ipor_alig.max_k == 4  # Don't need 5th since 550m is completely masked out
-
-    assert str(ipor_alig) == 'Interpolator[bottom_top: (60, 350, 550)]'
-    assert str(ipor_stag) == 'Interpolator[bottom_top_stag: (60, 350, 550)]'
+def test_build_interpolator_alig():
+    targets = [60, 350, 550]
+    DATA_Z_ALIG = destagger_array(DATA_Z_STAG, 1)
+    ipor = build_interpolator(DATA_Z_ALIG, targets, False)
+    assert type(ipor) == Interpolator
+    assert ipor.dimension == DIM_BOTTOM_TOP
+    assert ipor.max_k == 4  # Don't need 5th since 550m is completely masked out
+    assert str(ipor) == 'Interpolator[bottom_top: (60, 350, 550)]'
 
 
 def test_interpolate_z():
     targets = [60, 350, 550]
-    ipor_alig, ipor_stag = build_interpolators(DATA_Z_STAG, targets, True, True)
-    z_tgt = ipor_stag(DATA_Z_STAG)
+    ipor = build_interpolator(DATA_Z_STAG, targets, True)
+    z_tgt = ipor(DATA_Z_STAG)
 
     # 60m crosses sigma-0 and sigma-1
-    assert min_max_round(ipor_stag.vics[0].k_fl) == (0, 1)
-    assert np.sum(ipor_stag.vics[0].mask) == 0
+    assert min_max_round(ipor.vics[0].k_fl) == (0, 1)
+    assert np.sum(ipor.vics[0].mask) == 0
     assert round(np.min(z_tgt[:, 0]), 5) == 60
     assert round(np.max(z_tgt[:, 0]), 5) == 60
 
     # 350m is in sigma-3
-    assert min_max_round(ipor_stag.vics[1].k_fl) == (3, 3)
-    assert np.sum(ipor_stag.vics[1].mask) == 0
+    assert min_max_round(ipor.vics[1].k_fl) == (3, 3)
+    assert np.sum(ipor.vics[1].mask) == 0
     assert round(np.min(z_tgt[:, 1]), 5) == 350
     assert round(np.max(z_tgt[:, 1]), 5) == 350
 
     # 550m is in sigma-4 but blows out of the top at 42 points
-    assert min_max_round(ipor_stag.vics[2].k_fl) == (4, 4)
-    assert np.sum(ipor_stag.vics[2].mask) == 42
+    assert min_max_round(ipor.vics[2].k_fl) == (4, 4)
+    assert np.sum(ipor.vics[2].mask) == 42
     assert np.isnan(np.min(z_tgt[:, 2]))
     assert np.isnan(np.max(z_tgt[:, 2]))
     assert z_tgt[:, 2, 2, 2].tolist() == [550, 550, 550]
@@ -104,11 +104,12 @@ def test_interpolate_z():
 
 def test_interpolate_t():
     targets = [60, 350, 550]
-    ipor_alig, ipor_stag = build_interpolators(DATA_Z_STAG, targets, True, True)
+    DATA_Z_ALIG = destagger_array(DATA_Z_STAG, 1)
+    ipor = build_interpolator(DATA_Z_ALIG, targets, False)
 
-    t_tgt = ipor_alig(DATA_T)
+    t_tgt = ipor(DATA_T)
     assert t_tgt[:, 0, 0, 0].tolist() == [-17.10787269681742, -17.40796311818944, -17.70822147651007]
     assert t_tgt[:, 1, 0, 0].tolist() == [-17.7, -18.1, -18.400000000000002]
 
     # 550m is completely masked out in the aligne interpolator
-    assert np.sum(ipor_alig.vics[2].mask) == 48
+    assert np.sum(ipor.vics[2].mask) == 48

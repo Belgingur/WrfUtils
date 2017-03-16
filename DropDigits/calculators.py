@@ -2,12 +2,16 @@ import inspect
 import logging
 from types import FunctionType
 from typing import Dict, Iterable
+from typing import List
+from typing import Set
+from typing import Union
 
 import numpy as np
 from netCDF4 import Dataset, Variable
 
-from utils import destagger_array_by_dim, DIM_SOUTH_NORTH_STAG, DIM_WEST_EAST_STAG
-from vertical_interpolation import Interpolator
+from utils import destagger_array_by_dim, DIM_SOUTH_NORTH_STAG, DIM_WEST_EAST_STAG, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG, \
+    g_inv, memoize, destagger_array
+from vertical_interpolation import Interpolator, build_interpolator
 
 LOG = logging.getLogger('belgingur.calculators')
 
@@ -26,41 +30,113 @@ class ChunkCalculator(object):
     or derived.
     """
 
-    def __init__(self, ds: Dataset, t_start: int, t_end: int, ipor_alig: Interpolator, ipor_stag: Interpolator):
+    def __init__(self, t_start: int, t_end: int, heights: List[int], above_ground: bool):
         super().__init__()
-        self.ds = ds
-        self.vars = ds.variables  # type: Dict[str, Variable]
+        self.datasets = []  # type: List[(Dataset, int, Union[None, Set[str]])]
+
         self.t_start = t_start
         self.t_end = t_end
-        self.ipor_alig = ipor_alig
-        self.ipor_stag = ipor_stag
+        self.heights = heights
+        self.above_ground = above_ground
+
+        # Laxily crated objets
+        self._ipor_stag = None
+        self._ipor_alig = None
+
+        # Cached variable data
         self.cache = {}  # type: Dict[str, np.ndarray]
 
+    def add_dataset(self, ds: Dataset, margin: int = None, var_names: Iterable[str] = None):
+        """
+        Add dataset to take variables from and an optional list of dataset to allow reading.
+        If the given dataset is, then do nothing.
+        If var_names is None, then allow all variables to be read.
+        """
+        if ds is None:
+            return
+        if var_names is None:
+            var_names = set(ds.variables.keys())
+        else:
+            var_names = {name for name in var_names if name in ds.variables}
+        self.datasets.append((ds, margin, var_names))
+
+    @memoize
+    def z_stag(self):
+        LOG.info('        calculate z_stag')
+
+        ph, m, n = self.get_var_native('PH')
+        ph = ph[self.t_start:self.t_end, ..., m:n, m:n]
+        phb, m, n = self.get_var_native('PHB')
+        phb = phb[self.t_start:self.t_end, ..., m:n, m:n]
+
+        z_stag = (ph + phb) * g_inv  # ph and phb are vertically staggered
+        if self.above_ground:
+            hgt, m, n = self.get_var_native('HGT')
+            hgt = hgt[0, m:n, m:n]
+            z_stag -= hgt
+        return z_stag
+
+    @memoize
+    def z_alig(self):
+        LOG.info('        calculate z')
+        return destagger_array(self.z_stag(), 1)
+
+    def ipor_stag(self) -> Interpolator:
+        if self._ipor_stag is None:
+            self._ipor_stag = build_interpolator(self.z_stag(), self.heights, True)
+        return self._ipor_stag
+
+    def ipor_alig(self) -> Interpolator:
+        if self._ipor_alig is None:
+            self._ipor_alig = build_interpolator(self.z_alig(), self.heights, False)
+        return self._ipor_alig
+
     def __call__(self, var_name: str) -> np.ndarray:
+        # synthetic variable wnated by e.g. `height`
         if var_name == '_chunk_calculator':
             return self
-        try:
-            r = self.cache[var_name]
+
+        # Attempt to return variable from cache
+        r = self.cache.get(var_name, None)
+        if r is not None:
             LOG.info('        cached %s', var_name)
-        except KeyError:
-            if var_name in self.vars:
-                r = self.get_chunk_native(var_name)
-            elif var_name in CALCULATORS:
-                r = self.get_chunk_derived(var_name)
-            else:
-                raise ValueError('Unknown variable: ' + var_name)
-            self.cache[var_name] = r
+            return r
+
+        # Attempt to read variable from a dataset
+        var, m, n = self.get_var_native(var_name)
+        if var is not None:
+            r = self.get_chunk_native(var, m, n)
+
+        # Attempt to calculate variable
+        if r is None and var_name in CALCULATORS:
+            r = self.get_chunk_derived(var_name)
+
+        # it all failed.
+        if r is None:
+            raise ValueError('Unknown variable: ' + var_name)
+
+        self.cache[var_name] = r
         return r
 
-    def get_chunk_native(self, var_name) -> np.ndarray:
-        LOG.info('        read %s', var_name)
-        var = self.vars[var_name]
+    def get_var_native(self, var_name) -> (Variable, int):
+        """ Finds a native variable and the associated margin by looking through the list of added datasets. """
+        for ds, margin, var_names in self.datasets:
+            if var_name in var_names:
+                var = ds.variables[var_name]
+                if margin:
+                    return var, margin, -margin
+                else:
+                    return var, None, None
+        return None, None, None
+
+    def get_chunk_native(self, var: Variable, m: int, n: int) -> np.ndarray:
+        LOG.info('        read %s', var.name)
         dims = var.dimensions
 
-        if self.ipor_alig.dimension in dims:
-            ipor = self.ipor_alig
-        elif self.ipor_stag.dimension in dims:
-            ipor = self.ipor_stag
+        if DIM_BOTTOM_TOP in dims:
+            ipor = self.ipor_alig()
+        elif DIM_BOTTOM_TOP_STAG in dims:
+            ipor = self.ipor_stag()
         else:
             ipor = None
 
@@ -68,6 +144,8 @@ class ChunkCalculator(object):
             chunk = var[self.t_start:self.t_end, 0:ipor.max_k + 1]
         else:
             chunk = var[self.t_start:self.t_end]
+        if m:
+            chunk = chunk[..., m:n, m:n]
         in_shape = chunk.shape
 
         # Destagger as needed
@@ -156,10 +234,7 @@ def derived(
 )
 def height(_chunk_calculator: ChunkCalculator):
     """ :param _chunk_calculator: Super magic variable giving the ChunkCalculator which is calling use. """
-    ipor = _chunk_calculator.ipor_stag or _chunk_calculator.ipor_alig
-    if ipor is None:
-        raise ValueError('There is no vertical interpolation and so no heights')
-    return np.array(ipor.heights)
+    return np.array(_chunk_calculator.heights)
 
 
 @derived(

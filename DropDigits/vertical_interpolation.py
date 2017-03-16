@@ -8,7 +8,7 @@ from typing import List
 
 import numpy as np
 
-from utils import destagger_array, DIM_BOTTOM_TOP_STAG, DIM_BOTTOM_TOP
+from utils import DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
 
 LOG = logging.getLogger('belgingur.elevator')
 
@@ -35,29 +35,17 @@ class Interpolator(object):
         return apply_vics(self.vics, var)
 
 
-def build_interpolators(
-        z_stag: np.ndarray, targets: List[float], need_aligned: bool, need_staggered: bool
-) -> (Interpolator, Interpolator):
+def build_interpolator(z: np.ndarray, targets: List[float], staggered: bool) -> Interpolator:
     """ Builds Interpolators for bottom_top and bottom_top_stag as needed according to in_dims. """
-    LOG.info('Generate Vertical Interpolation Constants')
+    if staggered:
+        dim = DIM_BOTTOM_TOP_STAG
+        LOG.info('        make staggered interpolator for %s', targets)
+    else:
+        dim = DIM_BOTTOM_TOP
+        LOG.info('        make aligned interpolator for %s', targets)
 
-    LOG.info('targets: %s', targets)
-    interpolator_stag = None
-    if need_staggered:
-        LOG.info('    for vertically staggered')
-        vics_stag = list(build_vic(tgt, z_stag) for tgt in targets)
-        interpolator_stag = Interpolator(targets, vics_stag, DIM_BOTTOM_TOP_STAG)
-        # z_stag_heights = interpolator_stag(z_stag)  # Should be similar to heights
-
-    interpolator = None
-    if need_aligned:
-        LOG.info('    for vertically aligned')
-        z = destagger_array(z_stag, 1)
-        vics = list(build_vic(tgt, z) for tgt in targets)
-        interpolator = Interpolator(targets, vics, DIM_BOTTOM_TOP)
-        # z_heights = interpolator(z)  # Should be similar to heights
-
-    return interpolator, interpolator_stag
+    vics = list(build_vic(tgt, z) for tgt in targets)
+    return Interpolator(targets, vics, dim)
 
 
 def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
@@ -116,9 +104,9 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
         mask = mask[:, 0, :, :]
     trues = np.count_nonzero(mask)
     if trues:
-        LOG.warning('        %sm %0.0f%% masked', target, 100 * trues / flatsize)
+        LOG.warning('            %sm %0.0f%% masked', target, 100 * trues / flatsize)
     else:
-        LOG.info('        %sm', target)
+        LOG.debug('        %sm', target)
 
     return VIC(t_grid, j_grid, i_grid, k_ce, k_fl, w_ce, w_fl, mask)
 

@@ -98,13 +98,16 @@ def test_create_output_dimensions():
 
 
 def test_create_output_variables_native():
-    #in_ds = mock_africa_ds()
-    from netCDF4 import Dataset
-    in_ds = Dataset(WRFOUT_AFRICA)
+    in_ds = mock_africa_ds()
+    # from netCDF4 import Dataset
+    # in_ds = Dataset(WRFOUT_AFRICA)
 
     out_ds = MagicMock(name='out_ds')
     out_var_names = ['U', 'V', 'T', 'TKE_PBL']
-    create_output_variables(in_ds, out_ds, out_var_names, CALCULATORS, 7, True, 5)
+    create_output_variables(
+        in_ds, None, CALCULATORS,
+        out_ds, out_var_names, 7, True, 5
+    )
     assert out_ds.createVariable.call_args_list == [
         call('U', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
@@ -117,17 +120,40 @@ def test_create_output_variables_native():
     ]
 
 
+def test_create_output_variables_fallback():
+    in_ds = mock_africa_ds()
+    # from netCDF4 import Dataset
+    # in_ds = Dataset(WRFOUT_AFRICA)
+    out_ds = MagicMock(name='out_ds')
+    out_var_names = ['T', 'TKE_PBL', 'HGT']
+    create_output_variables(
+        in_ds, None, CALCULATORS,
+        out_ds, out_var_names, 7, True, 5
+    )
+    assert out_ds.createVariable.call_args_list == [
+        call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+        call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
+             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+        call('HGT', np.float32, chunksizes=(128, 16, 16), complevel=7,
+             dimensions=('Time', 'south_north', 'west_east'), shuffle=True, zlib=True),
+    ]
+
+
 def test_create_output_variables_mixed():
-    #in_ds = mock_africa_ds()
-    from netCDF4 import Dataset
-    in_ds = Dataset(WRFOUT_AFRICA)
+    in_ds = mock_africa_ds()
+    #from netCDF4 import Dataset
+    #in_ds = Dataset(WRFOUT_AFRICA)
 
     LOG.info('in_ds.variables["T"].dimensions: %s', in_ds.variables["T"].dimensions)
     LOG.info('in_ds.variables["T"].datatype: %s', in_ds.variables["T"].datatype)
 
     out_ds = MagicMock(name='out_ds')
     out_var_names = ['T', 'TKE_PBL', 'wind_speed', 'wind_dir']
-    create_output_variables(in_ds, out_ds, out_var_names, CALCULATORS, 7, True, 5)
+    create_output_variables(
+        in_ds, None, CALCULATORS,
+        out_ds, out_var_names, 7, True, 5
+    )
     assert out_ds.createVariable.call_args_list == [
         call('T', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),

@@ -13,7 +13,7 @@ import re
 from collections import OrderedDict
 from time import time
 from types import FunctionType
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 
 import numpy as np
 import yaml
@@ -21,8 +21,7 @@ from netCDF4 import Dataset, Variable
 
 from calculators import ChunkCalculator, CALCULATORS
 from utils import out_file_name, setup_logging, read_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    create_output_dataset, g_inv, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG, DIM_TIME
-from vertical_interpolation import build_interpolators
+    create_output_dataset, DIM_BOTTOM_TOP, DIM_TIME
 
 LOG = logging.getLogger('belgingur.elevator')
 
@@ -31,11 +30,18 @@ __EMPTY__ = '__EMPTY__'
 
 np.set_printoptions(4, edgeitems=3, linewidth=200)
 
+""" Names of static dimensions which can be read from another file from the same model config """
+DIM_NAMES_GEO = ('XLAT', 'XLONG', 'HGT', 'COSALPHA', 'SINALPHA')
+
 
 def configure() -> (argparse.Namespace, dict):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-c', '--config', default='Elevator.yml',
+    parser.add_argument('--config', default='Elevator.yml',
                         help='Configuration to read (def: Elevator.yml)')
+    parser.add_argument('--geo-fallback',
+                        help='Read XLAT, XLONG, HGT from this file if missing in an input file')
+    parser.add_argument('--geo-margin', default=0, type=int,
+                        help='Margin to discard on geo-fallback file to match input files')
     parser.add_argument('in_files', nargs="+",
                         help='wrf output files to process')
     args = parser.parse_args()
@@ -89,8 +95,11 @@ def destagger_dim_name(in_dim_name: str):
         return in_dim_name
 
 
-def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List[str], calculators: Dict[str, Any],
-                            comp_level: int, chunking: bool, elevation_limit: int) -> List[Variable]:
+def create_output_variables(
+        in_ds: Dataset, geo_ds: Union[None, Dataset], calculators:
+        Dict[str, Any], out_ds: Dataset, out_var_names: List[str],
+        comp_level: int, chunking: bool, elevation_limit: int
+) -> List[Variable]:
     LOG.info('Create output variables with:')
     out_vars = []
     for var_name in out_var_names:
@@ -98,21 +107,23 @@ def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List
         # We have given the calculator functions just enough attributes that either will work below
         if var_name in in_ds.variables:
             source = in_ds.variables[var_name]  # type: Variable
-            out_dims = tuple(destagger_dim_name(d) for d in source.dimensions)
+        elif var_name in DIM_NAMES_GEO and geo_ds and var_name in geo_ds.variables:
+            source = geo_ds.variables[var_name]  # type: Variable
         elif var_name in calculators:
             source = calculators[var_name]
-            out_dims = source.dimensions
         else:
             raise ValueError('Unknown variable %s', var_name)
+        dimensions = tuple(destagger_dim_name(d) for d in source.dimensions)
 
         sf = getattr(source, 'scale_factor', 1)
         off = getattr(source, 'add_offset', 0)
-        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(out_dims), datatype_name(source.datatype), sf, off)
+        dtn = datatype_name(source.datatype)
+        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), dtn, sf, off)
 
         chunk_sizes = pick_chunk_sizes(source.dimensions, elevation_limit) if chunking else None
         out_var = out_ds.createVariable(var_name,
                                         source.datatype,
-                                        dimensions=out_dims,
+                                        dimensions=dimensions,
                                         zlib=comp_level > 0,
                                         complevel=comp_level,
                                         shuffle=True,
@@ -166,12 +177,15 @@ def main():
              'm, '.join(map(str, heights)),
              'ground' if above_ground else 'sea-level')
     LOG.info('')
+    geo_ds = Dataset(args.geo_fallback) if args.geo_fallback else None
+    geo_margin = args.geo_margin
+
     for in_file in args.in_files:
         start_time = time()
         out_file_pattern = config.get('output_filename', './{filename}_reduced.nc4')
         out_file = out_file_name(in_file, out_file_pattern)
 
-        process_file(in_file, out_file, config=config)
+        process_file(geo_ds, geo_margin, in_file, out_file, config=config)
 
         # Print space saved and time used
         in_size = os.path.getsize(in_file)
@@ -197,7 +211,7 @@ def main():
         ))
 
 
-def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
+def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, *, config: Dict[str, Any]):
     LOG.info('Opening input dataset %s', in_file)
     in_ds = Dataset(in_file, 'r')
     out_var_names = config.get('variables')
@@ -214,7 +228,7 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
 
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
-    create_output_variables(in_ds, out_ds, out_var_names, CALCULATORS, comp_level, chunking, len(heights))
+    create_output_variables(in_ds, geo_ds, CALCULATORS, out_ds, out_var_names, comp_level, chunking, len(heights))
 
     chunk_size = CHUNK_SIZE_TIME // 4
     LOG.info('Processing data in chunks of %s time steps', chunk_size)
@@ -222,24 +236,32 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
         t_end = min(t_start + chunk_size, len(dates))
         LOG.info('Chunk[%s:%s]: %s - %s', t_start, t_end, dates[t_start], dates[t_end - 1])
 
-        need_aligned = DIM_BOTTOM_TOP in in_dim_names
-        need_staggered = DIM_BOTTOM_TOP_STAG in in_dim_names
-        z_stag = calc_z_stag(in_ds, t_start, t_end, above_ground)
-        ipor_alig, ipor_stag = build_interpolators(z_stag, heights, need_aligned, need_staggered)
-        cc = ChunkCalculator(in_ds, t_start, t_end, ipor_alig, ipor_stag)
+        cc = ChunkCalculator(t_start, t_end, heights, above_ground)
+        cc.add_dataset(in_ds)
+        cc.add_dataset(geo_ds, geo_margin, DIM_NAMES_GEO)
 
         LOG.info('Processing Variable')
         for out_var_name in out_var_names:
             LOG.info('    %s', out_var_name)
             before_var = time()
             out_var = out_ds.variables[out_var_name]
+            out_chunk = cc(out_var_name)
 
-            if DIM_TIME in out_var.dimensions:
-                out_var[t_start:t_end] = cc(out_var_name)
+            try:
+                if DIM_TIME in out_var.dimensions:
+                    out_var[t_start:t_end] = out_chunk
 
-            # If this is not a time series, copy the data as we do the first chunk.
-            elif t_start == 0:
-                out_var[:] = cc(out_var_name)
+                # If this is not a time series, copy the data as we do the first chunk.
+                elif t_start == 0:
+                    out_var[:] = out_chunk
+
+            except IndexError:
+                LOG.error(
+                    'Unable to write out_chunk with shape %s to output variable of shape %s',
+                    out_chunk.shape, out_var.shape)
+                exit(1)
+
+
             out_ds.sync()
             LOG.info('        %.3fs', time() - before_var)
 
@@ -277,19 +299,6 @@ def resolve_dimensions(
         add_var(out_var_name, True)
 
     return list(in_dim_names.keys()), list(out_dim_names.keys())
-
-def calc_z_stag(ds: Dataset, t_start: int, t_end: int, above_ground: bool):
-    PH = ds.variables['PH'][t_start:t_end]
-    PHB = ds.variables['PHB'][t_start:t_end]
-    z_stag = (PH + PHB) * g_inv  # PH and PHB are staggered
-
-    if above_ground:
-        HGT = ds.variables['HGT']
-        hgt = HGT[0]
-        z_stag -= hgt
-
-    return z_stag
-
 
 
 if __name__ == '__main__':

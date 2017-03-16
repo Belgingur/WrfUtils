@@ -26,7 +26,7 @@ above_ground: True
 variables:
   # Shape of data space
   - Times
-  - XLAT     # TODO: Support --geo-from= argument to read HGT, XLAT, XLONG from external file if missing
+  - XLAT
   - XLONG
   - height
 

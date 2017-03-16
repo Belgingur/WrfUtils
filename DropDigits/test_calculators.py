@@ -5,8 +5,9 @@ from unittest.mock import MagicMock, call, patch
 
 import numpy as np
 
+from Elevator import DIM_NAMES_GEO
 from calculators import CALCULATORS, ChunkCalculator, derived
-from utils import DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
+from utils import DIM_BOTTOM_TOP
 from utils_testing import mock_dataset_meta
 
 MY_DIR = Path(__file__).parent
@@ -45,18 +46,18 @@ def test_init():
 
 def test_calculator_native_aligned():
     in_ds = mock_africa_ds()
-    ipor_stag = MagicMock(name='ipor_stag')  # Unused
 
-    ipor_alig = MagicMock(name='ipor_alig')  # Interpolates T
-    ipor_alig.dimension = DIM_BOTTOM_TOP
-    ipor_alig.max_k = 7
+    c = ChunkCalculator(10, 20, [10, 50, 100], True)
+    c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates T
+    c._ipor_alig.dimension = DIM_BOTTOM_TOP
+    c._ipor_alig.max_k = 7
 
     T_ORIGINAL = in_ds.variables['T'].__getitem__.return_value
     T_ORIGINAL.shape = (10, 10, 100, 100)
-    T_INTERPOLATED = ipor_alig.return_value
+    T_INTERPOLATED = c._ipor_alig.return_value
 
     # Make the call
-    c = ChunkCalculator(in_ds, 10, 20, ipor_alig, ipor_stag)
+    c.add_dataset(in_ds)
     T = c('T')
 
     # Retrieved data
@@ -67,7 +68,7 @@ def test_calculator_native_aligned():
         ))
     ]
     # Interpolated on bottom_top
-    assert ipor_alig.call_args_list == [
+    assert c._ipor_alig.call_args_list == [
         call(T_ORIGINAL),
     ]
     # Returned the interpolated value
@@ -76,20 +77,19 @@ def test_calculator_native_aligned():
 
 def test_calculator_native_staggered():
     in_ds = mock_africa_ds()
-    ipor_stag = MagicMock(name='ipor_stag')  # Unused
-
-    ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
-    ipor_alig.dimension = DIM_BOTTOM_TOP
-    ipor_alig.max_k = 5
+    c = ChunkCalculator(5, 12, [33, 66, 99], True)
+    c.add_dataset(in_ds)
+    c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
+    c._ipor_alig.dimension = DIM_BOTTOM_TOP
+    c._ipor_alig.max_k = 5
 
     with patch('utils.destagger_array') as destagger_array:
         U_ORIGINAL = in_ds.variables['U'].__getitem__.return_value
         U_ORIGINAL.shape = (7, 10, 80,70)
         U_DESTAGGERED = destagger_array.return_value
-        U_INTERPOLATED = ipor_alig.return_value
+        U_INTERPOLATED = c._ipor_alig.return_value
 
         # Make the call
-        c = ChunkCalculator(in_ds, 5, 12, ipor_alig, ipor_stag)
         U = c('U')
 
         # Retrieved data
@@ -104,7 +104,7 @@ def test_calculator_native_staggered():
             call(U_ORIGINAL, 3),
         ]
         # Interpolated on bottom_top
-        assert ipor_alig.call_args_list == [
+        assert c._ipor_alig.call_args_list == [
             call(U_DESTAGGERED),
         ]
         # Returned the interpolated value
@@ -113,13 +113,13 @@ def test_calculator_native_staggered():
 
 def test_calculator_derived():
     in_ds = mock_africa_ds()
-    ipor_stag = MagicMock(name='ipor_stag')  # Unused
-    ipor_stag.dimension = DIM_BOTTOM_TOP_STAG
-    ipor_stag.max_k = 5
+    c = ChunkCalculator(32, 64, [50, 150, 300], True)
+    c.add_dataset(in_ds)
 
-    ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
-    ipor_alig.dimension = DIM_BOTTOM_TOP
-    ipor_alig.max_k = 6
+    c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
+    c._ipor_alig.dimension = DIM_BOTTOM_TOP
+    c._ipor_alig.max_k = 6
+    c._ipor_alig.side_effect = lambda var: var.ipor_alig
 
     with patch('utils.destagger_array') as destagger_array:
         VAR_U = in_ds.variables['U'].__getitem__.return_value
@@ -133,8 +133,6 @@ def test_calculator_derived():
         VAR_V.destagger_2.ipor_alig.shape = (7, 3, 80, 70)
 
         destagger_array.side_effect = lambda var, axis, **kw: getattr(var, 'destagger_'+str(axis))
-        ipor_alig.side_effect = lambda var: var.ipor_alig
-        ipor_stag.side_effect = lambda var: var.ipor_stag
 
         MOCK_RESULT = MagicMock(name='MOCK_RESULT')
         MOCK_MOCK_RESULT = MagicMock(name='MOCK_MOCK_RESULT')
@@ -156,7 +154,6 @@ def test_calculator_derived():
             return MOCK_MOCK_RESULT
 
         # Make the call
-        c = ChunkCalculator(in_ds, 32, 64, ipor_alig, ipor_stag)
         MR = c('mock')
 
         # Retrieved data
@@ -172,7 +169,7 @@ def test_calculator_derived():
             call(VAR_V, 2),
         ]
         # Interpolated on bottom_top
-        assert ipor_alig.call_args_list == [
+        assert c._ipor_alig.call_args_list == [
             call(VAR_U.destagger_3),
             call(VAR_V.destagger_2),
         ]
@@ -182,14 +179,48 @@ def test_calculator_derived():
 
 def test_calculator_height():
     in_ds = MagicMock()
-    ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
-    ipor_alig.heights = [10, 50, 80, 100, 150]
-    ipor_alig.dimension = DIM_BOTTOM_TOP
-    ipor_alig.max_k = 6
+    in_ds.variables = dict(
+        T=MagicMock(),
+        U=MagicMock(),
+        V=MagicMock(),
+    )
+    c = ChunkCalculator(5, 12, [10, 50, 80, 100, 150], True)
+    c.add_dataset(in_ds)
+    c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
+    c._ipor_alig.heights = c.heights
+    c._ipor_alig.dimension = DIM_BOTTOM_TOP
+    c._ipor_alig.max_k = 6
 
     # Make the call
-    c = ChunkCalculator(in_ds, 5, 12, ipor_alig, None)
     height = c('height')
 
     assert type(height) == np.ndarray
     assert height.tolist() == [10, 50, 80, 100, 150]
+
+
+def test_fallback():
+    in_ds = MagicMock()
+    in_ds.variables = dict(
+        T=MagicMock(),
+        U=MagicMock(),
+        V=MagicMock(),
+    )
+
+    HGT = MagicMock(name='HGT')
+    HGT.dimensions = ('south_north', 'west_east')
+    geo_ds = MagicMock()
+    geo_ds.variables = dict(
+        XLAT=MagicMock(),
+        XLONG=MagicMock(),
+        HGT=HGT,
+    )
+
+    c = ChunkCalculator(10, 20, [100, 200, 500], False)
+    c.add_dataset(in_ds)  # Does not have the geo variables
+    c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
+    r = c('HGT')
+
+    assert r is HGT.__getitem__.return_value.__getitem__.return_value
+    assert HGT.__getitem__.call_args_list == [
+        call(slice(10, 20, None)),  # Time slice
+    ]
