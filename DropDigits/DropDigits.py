@@ -139,7 +139,7 @@ def create_output_variables(out_ds: Dataset, in_vars: List[Variable], overrides:
         LOG.info('    %- 10s %- 10s %s..%s', var_name, override, override.range_min, override.range_max)
 
         data_type = value_with_override('datatype', override, in_var)
-        chunk_sizes = pick_chunk_sizes(in_var, max_k) if chunking else None
+        chunk_sizes = pick_chunk_sizes(in_var.dimensions, max_k) if chunking else None
         out_var = out_ds.createVariable(in_var.name,
                                         data_type,
                                         dimensions=in_var.dimensions,
