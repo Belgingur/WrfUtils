@@ -9,8 +9,9 @@ Also de-staggers all variables horizontally.
 import argparse
 import logging.config
 import os
-import time
+import re
 from collections import OrderedDict
+from time import time
 from types import FunctionType
 from typing import List, Dict, Any
 
@@ -20,7 +21,7 @@ from netCDF4 import Dataset, Variable
 
 from calculators import ChunkCalculator, CALCULATORS
 from utils import out_file_name, setup_logging, read_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    create_output_dataset, g_inv, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
+    create_output_dataset, g_inv, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG, DIM_TIME
 from vertical_interpolation import build_interpolators
 
 LOG = logging.getLogger('belgingur.elevator')
@@ -106,10 +107,9 @@ def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List
 
         sf = getattr(source, 'scale_factor', 1)
         off = getattr(source, 'add_offset', 0)
-        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(out_dims), source.datatype, sf, off)
+        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(out_dims), datatype_name(source.datatype), sf, off)
 
-        ndims = len(source.dimensions)
-        chunk_sizes = pick_chunk_sizes(ndims, elevation_limit) if chunking else None
+        chunk_sizes = pick_chunk_sizes(source.dimensions, elevation_limit) if chunking else None
         out_var = out_ds.createVariable(var_name,
                                         source.datatype,
                                         dimensions=out_dims,
@@ -119,7 +119,7 @@ def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List
                                         chunksizes=chunk_sizes)
         for field in (
                 'description', 'least_significant_digit', 'scale_factor', 'add_offset',
-                'FieldType', 'MemoryOrder', 'units', 'stagger', 'coordinates',
+                'FieldType', 'MemoryOrder', 'units', 'coordinates',
         ):
             value = getattr(source, field, None)
             if value is not None:
@@ -128,6 +128,15 @@ def create_output_variables(in_ds: Dataset, out_ds: Dataset, out_var_names: List
 
     LOG.debug('Converted variables: \n%s', '\n'.join(map(str, out_vars)))
     return out_vars
+
+
+def datatype_name(datatype):
+    """ String representation of np.dtype """
+    dts = str(datatype)
+    m = re.compile("<.*\.(\w+)'>").match(dts)
+    if m:
+        return m.group(1)
+    return dts
 
 
 def create_output_dimensions(in_ds: Dataset, out_ds: Dataset, out_dim_names: List[str], max_k: int):
@@ -149,7 +158,7 @@ def main():
     setup_logging()
 
     args, config = configure()
-    total_start_time = time.time()
+    total_start_time = time()
     total_in_size = total_out_size = 0
     heights = config.get('heights')
     above_ground = bool(config.get('above_ground'))
@@ -158,7 +167,7 @@ def main():
              'ground' if above_ground else 'sea-level')
     LOG.info('')
     for in_file in args.in_files:
-        start_time = time.time()
+        start_time = time()
         out_file_pattern = config.get('output_filename', './{filename}_reduced.nc4')
         out_file = out_file_name(in_file, out_file_pattern)
 
@@ -174,7 +183,7 @@ def main():
             in_size / 1024,
             out_size / 1024,
             out_percent,
-            time.time() - start_time
+            time() - start_time
         ))
         LOG.info('')
 
@@ -184,7 +193,7 @@ def main():
             total_in_size / 1024,
             total_out_size / 1024,
             total_out_percent,
-            time.time() - total_start_time,
+            time() - total_start_time,
         ))
 
 
@@ -222,8 +231,17 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any]):
         LOG.info('Processing Variable')
         for out_var_name in out_var_names:
             LOG.info('    %s', out_var_name)
-            out_ds.variables[out_var_name][t_start:t_end] = cc(out_var_name)
+            before_var = time()
+            out_var = out_ds.variables[out_var_name]
+
+            if DIM_TIME in out_var.dimensions:
+                out_var[t_start:t_end] = cc(out_var_name)
+
+            # If this is not a time series, copy the data as we do the first chunk.
+            elif t_start == 0:
+                out_var[:] = cc(out_var_name)
             out_ds.sync()
+            LOG.info('        %.3fs', time() - before_var)
 
     # Close our datasets
     in_ds.close()

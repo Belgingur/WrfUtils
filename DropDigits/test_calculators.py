@@ -3,6 +3,8 @@ from pathlib import Path
 from types import FunctionType
 from unittest.mock import MagicMock, call, patch
 
+import numpy as np
+
 from calculators import CALCULATORS, ChunkCalculator, derived
 from utils import DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG
 from utils_testing import mock_dataset_meta
@@ -176,3 +178,18 @@ def test_calculator_derived():
         ]
         # Returned the interpolated value
         assert MR is MOCK_RESULT
+
+
+def test_calculator_height():
+    in_ds = MagicMock()
+    ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
+    ipor_alig.heights = [10, 50, 80, 100, 150]
+    ipor_alig.dimension = DIM_BOTTOM_TOP
+    ipor_alig.max_k = 6
+
+    # Make the call
+    c = ChunkCalculator(in_ds, 5, 12, ipor_alig, None)
+    height = c('height')
+
+    assert type(height) == np.ndarray
+    assert height.tolist() == [10, 50, 80, 100, 150]

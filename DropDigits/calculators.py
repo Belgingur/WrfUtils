@@ -9,7 +9,7 @@ from netCDF4 import Dataset, Variable
 from utils import destagger_array_by_dim, DIM_SOUTH_NORTH_STAG, DIM_WEST_EAST_STAG
 from vertical_interpolation import Interpolator
 
-LOG = logging.getLogger(__name__)
+LOG = logging.getLogger('belgingur.calculators')
 
 # Mapping from derived variable name to function to calculate that variable.
 # It is built from functions named like the cariables annotated with @calculator
@@ -37,11 +37,12 @@ class ChunkCalculator(object):
         self.cache = {}  # type: Dict[str, np.ndarray]
 
     def __call__(self, var_name: str) -> np.ndarray:
+        if var_name == '_chunk_calculator':
+            return self
         try:
             r = self.cache[var_name]
-            LOG.info('CACHE HIT: %s', var_name)
+            LOG.info('        cached %s', var_name)
         except KeyError:
-            LOG.info('CACHE MISS: %s', var_name)
             if var_name in self.vars:
                 r = self.get_chunk_native(var_name)
             elif var_name in CALCULATORS:
@@ -52,7 +53,7 @@ class ChunkCalculator(object):
         return r
 
     def get_chunk_native(self, var_name) -> np.ndarray:
-        LOG.info('### get_chunk_native(%s)', var_name)
+        LOG.info('        read %s', var_name)
         var = self.vars[var_name]
         dims = var.dimensions
 
@@ -72,7 +73,6 @@ class ChunkCalculator(object):
         # Destagger as needed
         chunk = destagger_array_by_dim(chunk, dims, DIM_SOUTH_NORTH_STAG, log_indent=8)
         chunk = destagger_array_by_dim(chunk, dims, DIM_WEST_EAST_STAG, log_indent=8)
-        LOG.info('chunk: %s', chunk)
 
         # Interpolate as needed
         if ipor:
@@ -80,18 +80,15 @@ class ChunkCalculator(object):
             chunk = ipor(chunk)
         out_shape = chunk.shape
         if in_shape != out_shape:
-            LOG.info('        shape: %s -> %s', in_shape, out_shape)
+            LOG.debug('        shape: %s -> %s', in_shape, out_shape)
 
         return chunk
 
     def get_chunk_derived(self, var_name) -> np.ndarray:
-        LOG.info('### get_chunk_derived(%s)', var_name)
         calc = CALCULATORS[var_name]
-        LOG.info('calc.inputs: %s', calc.inputs)
         inputs = tuple(self(vn) for vn in calc.inputs)
-        LOG.info('inputs: %s', inputs)
+        LOG.info('        calculate %s', var_name)
         output = calc(*inputs)
-        LOG.info('output: %s', output)
         return output
 
 
@@ -146,9 +143,24 @@ def derived(
 # Most notably variables by default:
 #   - Use all the staggered dimensions
 #   - Have a scaling factor of 0.01
-#   - Use a 16-bit signed integer datatype
+#   - Use a 16-bit signed integer datatype   => range +- 327.68
 #   - Have a description derived from the variable nme
 # Override for calculators with other values.
+
+@derived(
+    dimensions=('bottom_top',),
+    description='Height of vertical interpolation surfaces',
+    units='m',
+    datatype=np.uint32,  # +- 2147km   (it can't quite fit in int16 and it's only a few values anyway)
+    scale_factor=0.001  # to 1mm resolution
+)
+def height(_chunk_calculator: ChunkCalculator):
+    """ :param _chunk_calculator: Super magic variable giving the ChunkCalculator which is calling use. """
+    ipor = _chunk_calculator.ipor_stag or _chunk_calculator.ipor_alig
+    if ipor is None:
+        raise ValueError('There is no vertical interpolation and so no heights')
+    return np.array(ipor.heights)
+
 
 @derived(
     description='x-wind component in earth-coordinates',

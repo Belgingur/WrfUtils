@@ -25,6 +25,7 @@ __EMPTY__ = '__EMPTY__'
 """ Magic empty value distinct from None. """
 
 # Dimension names
+DIM_TIME = 'Time'
 DIM_BOTTOM_TOP = 'bottom_top'
 DIM_BOTTOM_TOP_STAG = 'bottom_top_stag'
 DIM_WEST_EAST_STAG = 'west_east_stag'
@@ -59,14 +60,30 @@ TYPE_RANGE = dict(
 TYPE_RANGE[None] = None
 
 
-def pick_chunk_sizes(ndim: int, max_k: int = None) -> Tuple[int]:
+def pick_chunk_sizes(dimensions: List[str], max_k: int = None) -> Tuple[int]:
     """
     Given a variable, pick the appropriate chunk sizes to apply to it given it's shape
     """
+    ndim = len(dimensions)
     chunk_sizes = CHUNK_SIZES[ndim - 1]
-    if max_k is not None and len(chunk_sizes) >= 4:
-        # Don't make a chunk taller than the dimension
-        chunk_sizes = tuple(s if i != 1 else max_k for i, s in enumerate(chunk_sizes))
+
+    def index(a, *ss):
+        """ Returns the first index in a where an element in ss is found or None if not found """
+        for i, e in enumerate(a):
+            for s in ss:
+                if e == s:
+                    return i
+        return None
+
+    if max_k is not None:
+        # Clip the vertical dimension
+        k_idx = index(dimensions, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG)
+        if k_idx is not None and chunk_sizes[k_idx] > max_k:
+            chunk_sizes = tuple(
+                s if i != k_idx else max_k
+                for i, s in enumerate(chunk_sizes)
+            )
+
     return chunk_sizes
 
 

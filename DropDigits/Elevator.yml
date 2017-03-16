@@ -11,8 +11,7 @@ custom_attributes:
 
 # Altitudes [m] at which to interpolate 3D variables
 heights:
-  - 10  # TODO: Not available on bottom_top which would require extrapolation
-  - 29
+  - 10
   - 50
   - 80
   - 100
@@ -21,20 +20,17 @@ heights:
   #- 15000
 
 # Interpolate to heights above ground rather than above sea-level
-above_ground: True  # TODO: Support --geo-from= argument to read HGT, XLAT, XLONG from external file if missing
+above_ground: True
 
 # Variables to include
 variables:
-  # Shape of model space
+  # Shape of data space
   - Times
-  #- XLAT       # TODO: Not present in some test data
-  #- XLONG
-  #- height     # TODO: Write the heights array above as a 1-D variable
+  - XLAT     # TODO: Support --geo-from= argument to read HGT, XLAT, XLONG from external file if missing
+  - XLONG
+  - height
 
   # Native variables
-  #- U           # replaced by U_true in earth co-ordinates
-  #- V           # replaced by V_true in earth co-ordinates
-  #- T           # replaced by temp which is real temperature
   - TKE_PBL
 
   # Derived variables
@@ -44,9 +40,6 @@ variables:
   - wind_speed
   - wind_dir
   - density
-
-# Whether to terminate processing if an input variable is missing
-# terminate_on_missing: False  # TODO: Not implemented
 
 # Whether to apply chunking to the variables of the output file.
 chunking: True
