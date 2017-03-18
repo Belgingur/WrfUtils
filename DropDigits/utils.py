@@ -103,9 +103,10 @@ def read_wrf_dates(in_ds: Dataset) -> np.ndarray:
     """ Convert the WRF-style Times array from list of strings to a list of datetime objects. """
     times = in_ds.variables['Times']  # type: Variable
     dates = []
-    for t in times[:]:
-        tt = t.tostring().decode()
-        dates.append(datetime.datetime.strptime(tt, '%Y-%m-%d_%H:%M:%S'))
+    for b in times[:]:
+        s = b.tostring().decode()
+        d = datetime.datetime.strptime(s, '%Y-%m-%d_%H:%M:%S')
+        dates.append(d)
     dates = np.array(dates)
     return dates
 
