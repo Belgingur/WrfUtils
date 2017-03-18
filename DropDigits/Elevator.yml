@@ -26,8 +26,8 @@ above_ground: True
 variables:
   # Shape of data space
   - Times
-  - XLAT
-  - XLONG
+  #- XLAT
+  #- XLONG
   - height
 
   # Native variables

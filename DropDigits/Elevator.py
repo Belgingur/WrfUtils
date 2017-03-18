@@ -31,7 +31,7 @@ __EMPTY__ = '__EMPTY__'
 np.set_printoptions(4, edgeitems=3, linewidth=200)
 
 """ Names of static dimensions which can be read from another file from the same model config """
-DIM_NAMES_GEO = ('XLAT', 'XLONG', 'HGT', 'COSALPHA', 'SINALPHA')
+DIM_NAMES_GEO = ('XLAT', 'XLAT_M', 'XLONG', 'XLONG_M', 'HGT', 'HGT_M', 'COSALPHA', 'SINALPHA')
 
 
 def configure() -> (argparse.Namespace, dict):
@@ -239,6 +239,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
         cc = ChunkCalculator(t_start, t_end, heights, above_ground)
         cc.add_dataset(in_ds)
         cc.add_dataset(geo_ds, geo_margin, DIM_NAMES_GEO)
+        cc.make_vars_static('SINALPHA', 'COSALPHA', 'XLAT', 'XLAT_M', 'XLONG', 'XLONG_M', 'HGT', 'HGT_M')
 
         LOG.info('Processing Variable')
         for out_var_name in out_var_names:

@@ -8,12 +8,15 @@ import numpy as np
 from Elevator import DIM_NAMES_GEO
 from calculators import CALCULATORS, ChunkCalculator, derived
 from utils import DIM_BOTTOM_TOP
-from utils_testing import mock_dataset_meta
+from utils_testing import mock_dataset_meta, slice_call
 
 MY_DIR = Path(__file__).parent
 TEST_DIR = MY_DIR / 'test_data'
 WRFOUT_AFRICA = str(TEST_DIR / 'wrfout-africa-50.nc')
 WRFOUT_AFRICA_DUMP = TEST_DIR / 'wrfout-africa-50.ncdump'
+
+WRFOUT_RÁV = TEST_DIR / 'wrfout-ráv2.ncdump'
+GEO_RÁV = TEST_DIR / 'geo-ráv2.ncdump'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -85,7 +88,7 @@ def test_calculator_native_staggered():
 
     with patch('utils.destagger_array') as destagger_array:
         U_ORIGINAL = in_ds.variables['U'].__getitem__.return_value
-        U_ORIGINAL.shape = (7, 10, 80,70)
+        U_ORIGINAL.shape = (7, 10, 80, 70)
         U_DESTAGGERED = destagger_array.return_value
         U_INTERPOLATED = c._ipor_alig.return_value
 
@@ -132,7 +135,7 @@ def test_calculator_derived():
         VAR_V.destagger_2.shape = (7, 10, 80, 70)
         VAR_V.destagger_2.ipor_alig.shape = (7, 3, 80, 70)
 
-        destagger_array.side_effect = lambda var, axis, **kw: getattr(var, 'destagger_'+str(axis))
+        destagger_array.side_effect = lambda var, axis, **kw: getattr(var, 'destagger_' + str(axis))
 
         MOCK_RESULT = MagicMock(name='MOCK_RESULT')
         MOCK_MOCK_RESULT = MagicMock(name='MOCK_MOCK_RESULT')
@@ -220,7 +223,33 @@ def test_fallback():
     c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
     r = c('HGT')
 
-    assert r is HGT.__getitem__.return_value.__getitem__.return_value
-    assert HGT.__getitem__.call_args_list == [
-        call(slice(10, 20, None)),  # Time slice
-    ]
+    assert r is HGT.__getitem__.return_value
+    assert HGT.__getitem__.call_args_list == [slice_call[10:20, ..., 10:-10, 10:-10]]
+
+
+def test_fallback_geo_z():
+    in_ds = mock_dataset_meta(WRFOUT_RÁV)
+    geo_ds = mock_dataset_meta(GEO_RÁV)
+
+    c = ChunkCalculator(32, 64, [100, 200, 500], True)
+    c.add_dataset(in_ds)  # Does not have the geo variables
+    c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
+    c.z_stag()
+
+    assert in_ds.variables['PH'].__getitem__.call_args_list == [slice_call[32:64, ..., :, :]]
+    assert in_ds.variables['PHB'].__getitem__.call_args_list == [slice_call[32:64, ..., :, :]]
+    assert geo_ds.variables['HGT_M'].__getitem__.call_args_list == [slice_call[0, 10:-10, 10:-10]]
+
+
+def test_static_cosalpha_sinalpha():
+    in_ds = mock_dataset_meta(WRFOUT_RÁV)
+    geo_ds = mock_dataset_meta(GEO_RÁV)
+
+    c = ChunkCalculator(32, 64, [100, 200, 500], True)
+    c.add_dataset(in_ds)  # Does not have the geo variables
+    c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
+    c.make_vars_static('COSALPHA', 'SINALPHA')
+    c('COSALPHA')
+    assert geo_ds.variables['COSALPHA'].__getitem__.call_args_list == [slice_call[0, ..., 10:-10, 10:-10]]
+    c('SINALPHA')
+    assert geo_ds.variables['SINALPHA'].__getitem__.call_args_list == [slice_call[0, ..., 10:-10, 10:-10]]

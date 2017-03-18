@@ -33,6 +33,7 @@ class ChunkCalculator(object):
     def __init__(self, t_start: int, t_end: int, heights: List[int], above_ground: bool):
         super().__init__()
         self.datasets = []  # type: List[(Dataset, int, Union[None, Set[str]])]
+        self.static_vars = set()  # type: Set[str]
 
         self.t_start = t_start
         self.t_end = t_end
@@ -60,6 +61,11 @@ class ChunkCalculator(object):
             var_names = {name for name in var_names if name in ds.variables}
         self.datasets.append((ds, margin, var_names))
 
+    def make_vars_static(self, *var_names: str):
+        """ Specify that the givne variables are static and we will always return only the first time step. """
+        for var_name in var_names:
+            self.static_vars.add(var_name)
+
     @memoize
     def z_stag(self):
         LOG.info('        calculate z_stag')
@@ -71,7 +77,7 @@ class ChunkCalculator(object):
 
         z_stag = (ph + phb) * g_inv  # ph and phb are vertically staggered
         if self.above_ground:
-            hgt, m, n = self.get_var_native('HGT')
+            hgt, m, n = self.get_var_native('HGT', 'HGT_M')
             hgt = hgt[0, m:n, m:n]
             z_stag -= hgt
         return z_stag
@@ -118,15 +124,19 @@ class ChunkCalculator(object):
         self.cache[var_name] = r
         return r
 
-    def get_var_native(self, var_name) -> (Variable, int):
+    def get_var_native(self, var_name: str, var_name2: str = None) -> (Variable, int):
         """ Finds a native variable and the associated margin by looking through the list of added datasets. """
         for ds, margin, var_names in self.datasets:
             if var_name in var_names:
                 var = ds.variables[var_name]
-                if margin:
-                    return var, margin, -margin
-                else:
-                    return var, None, None
+            elif var_name2 in var_names:
+                var = ds.variables[var_name2]
+            else:
+                continue
+            if margin:
+                return var, margin, -margin
+            else:
+                return var, None, None
         return None, None, None
 
     def get_chunk_native(self, var: Variable, m: int, n: int) -> np.ndarray:
@@ -140,12 +150,26 @@ class ChunkCalculator(object):
         else:
             ipor = None
 
-        if ipor:
-            chunk = var[self.t_start:self.t_end, 0:ipor.max_k + 1]
+        # Build indices and slices to read exactly what we need from the variable
+        slices = []  # type: List[Union[None, int, slice]]
+
+        # Statics get a single time step. Others get the current chunk of time
+        if var.name in self.static_vars:
+            slices.append(0)
         else:
-            chunk = var[self.t_start:self.t_end]
+            slices.append(slice(self.t_start, self.t_end))
+
+        # Vertically interpolated variables only need sigma levels up to the highest used in the interpolation
+        if ipor:
+            slices.append(slice(0, ipor.max_k + 1))
+
+        # Cut off any margin
         if m:
-            chunk = chunk[..., m:n, m:n]
+            slices.append(Ellipsis)
+            slices.append(slice(m, n))
+            slices.append(slice(m, n))
+
+        chunk = var.__getitem__(tuple(slices))
         in_shape = chunk.shape
 
         # Destagger as needed
@@ -242,9 +266,7 @@ def height(_chunk_calculator: ChunkCalculator):
     units='m s-1',
 )
 def U_true(U, V, COSALPHA, SINALPHA):
-    ca = np.expand_dims(COSALPHA, 1)
-    sa = np.expand_dims(SINALPHA, 1)
-    return ca * U - sa * V
+    return COSALPHA * U - SINALPHA * V
 
 
 @derived(
@@ -252,9 +274,7 @@ def U_true(U, V, COSALPHA, SINALPHA):
     units='m s-1',
 )
 def V_true(U, V, COSALPHA, SINALPHA):
-    ca = np.expand_dims(COSALPHA, 1)
-    sa = np.expand_dims(SINALPHA, 1)
-    return sa * U + ca * V
+    return SINALPHA * U + COSALPHA * V
 
 
 @derived(

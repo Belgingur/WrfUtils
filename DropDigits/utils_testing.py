@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Dict, TypeVar, Generic, Tuple
 from typing import Union
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import numpy as np
 from netCDF4 import Variable, Dimension
@@ -79,18 +79,31 @@ def mock_dataset_meta(*header_path: Tuple[Union[Path, str]]):
     RE_GLOBAL_ATTRIB = re.compile('\t\t:([\w-]+) *= * (.+?) *;$')
 
     RE_QUOTED = re.compile('^"(.*?)"')
+    RE_COMMA_SEPARATOR = re.compile('\s*,\s*')
 
     def parse_value(v: str):
         m = RE_QUOTED.match(v)
         if m:
             return m.group(1)
+
+        errors = []
         try:
-            v = np.int32(v)
-        except ValueError:
-            if v.endswith('f'):
-                v = v[:-1]
-            v = np.float32(v)
-        return v
+            return np.int32(v)
+        except ValueError as e:
+            errors.append(e)
+
+        if v.endswith('f'):
+            v = v[:-1]
+        try:
+            return np.float32(v)
+        except ValueError as e:
+            errors.append(e)
+
+        a = RE_COMMA_SEPARATOR.split(v)
+        if len(a) > 1:
+            return [parse_value(x) for x in a]
+
+        raise ValueError('Unable to parse %s: %s', v, errors)
 
     def add_dim(name: str, size: str):
         dims[name] = dim = MagicMock(name=name)
@@ -197,3 +210,9 @@ def nda_from_string(shape, digits, s):
     return a
 
 
+class _SLICE_CALL(object):
+    def __getitem__(self, slices):
+        return call(slices)
+
+
+slice_call = _SLICE_CALL()

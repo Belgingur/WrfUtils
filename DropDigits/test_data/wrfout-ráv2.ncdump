@@ -1,0 +1,318 @@
+netcdf wrfout-ráv2 {
+dimensions:
+	Time = UNLIMITED ; // (49 currently)
+	DateStrLen = 19 ;
+	west_east_stag = 121 ;
+	south_north = 110 ;
+	bottom_top = 64 ;
+	west_east = 120 ;
+	south_north_stag = 111 ;
+	bottom_top_stag = 65 ;
+variables:
+	char Times(Time, DateStrLen) ;
+	short U(Time, bottom_top, south_north, west_east_stag) ;
+		U:description = "x-wind component" ;
+		U:least_significant_digit = 2. ;
+		U:scale_factor = 0.01 ;
+	short V(Time, bottom_top, south_north_stag, west_east) ;
+		V:description = "y-wind component" ;
+		V:least_significant_digit = 2. ;
+		V:scale_factor = 0.01 ;
+	short W(Time, bottom_top_stag, south_north, west_east) ;
+		W:description = "z-wind component" ;
+		W:least_significant_digit = 2. ;
+		W:scale_factor = 0.01 ;
+	int PH(Time, bottom_top_stag, south_north, west_east) ;
+		PH:description = "perturbation geopotential" ;
+		PH:least_significant_digit = 2. ;
+		PH:scale_factor = 0.01 ;
+	int PHB(Time, bottom_top_stag, south_north, west_east) ;
+		PHB:description = "base-state geopotential" ;
+		PHB:least_significant_digit = 2. ;
+		PHB:scale_factor = 0.01 ;
+	int T(Time, bottom_top, south_north, west_east) ;
+		T:description = "perturbation potential temperature (theta-t0)" ;
+		T:least_significant_digit = 2. ;
+		T:scale_factor = 0.01 ;
+	ubyte TKE(Time, bottom_top, south_north, west_east) ;
+		TKE:description = "TURBULENCE KINETIC ENERGY" ;
+		TKE:least_significant_digit = -0. ;
+		TKE:scale_factor = 1. ;
+	int P(Time, bottom_top, south_north, west_east) ;
+		P:description = "perturbation pressure" ;
+		P:least_significant_digit = 2. ;
+		P:scale_factor = 0.01 ;
+	ushort ALT(Time, bottom_top, south_north, west_east) ;
+		ALT:description = "inverse density" ;
+		ALT:least_significant_digit = 3. ;
+		ALT:scale_factor = 0.001 ;
+	uint PB(Time, bottom_top, south_north, west_east) ;
+		PB:description = "BASE STATE PRESSURE" ;
+		PB:least_significant_digit = 2. ;
+		PB:scale_factor = 0.01 ;
+	int Q2(Time, south_north, west_east) ;
+		Q2:description = "QV at 2 M" ;
+		Q2:least_significant_digit = 9. ;
+		Q2:scale_factor = 1.e-09 ;
+	ushort T2(Time, south_north, west_east) ;
+		T2:description = "TEMP at 2 M" ;
+		T2:least_significant_digit = 2. ;
+		T2:scale_factor = 0.01 ;
+	uint PSFC(Time, south_north, west_east) ;
+		PSFC:description = "SFC PRESSURE" ;
+		PSFC:least_significant_digit = 2. ;
+		PSFC:scale_factor = 0.01 ;
+	short U10(Time, south_north, west_east) ;
+		U10:description = "U at 10 M" ;
+		U10:least_significant_digit = 2. ;
+		U10:scale_factor = 0.01 ;
+	short V10(Time, south_north, west_east) ;
+		V10:description = "V at 10 M" ;
+		V10:least_significant_digit = 2. ;
+		V10:scale_factor = 0.01 ;
+	uint ITIMESTEP(Time) ;
+		ITIMESTEP:description = "" ;
+		ITIMESTEP:least_significant_digit = -0. ;
+		ITIMESTEP:scale_factor = 1. ;
+	ubyte RELHUM(Time, bottom_top, south_north, west_east) ;
+		RELHUM:description = "-" ;
+		RELHUM:least_significant_digit = -0. ;
+		RELHUM:scale_factor = 1. ;
+	uint MSLP(Time, south_north, west_east) ;
+		MSLP:description = "-" ;
+		MSLP:least_significant_digit = 2. ;
+		MSLP:scale_factor = 0.01 ;
+	int QVAPOR(Time, bottom_top, south_north, west_east) ;
+		QVAPOR:description = "Water vapor mixing ratio" ;
+		QVAPOR:least_significant_digit = 9. ;
+		QVAPOR:scale_factor = 1.e-09 ;
+	int QNICE(Time, bottom_top, south_north, west_east) ;
+		QNICE:description = "Ice Number concentration" ;
+		QNICE:least_significant_digit = 2. ;
+		QNICE:scale_factor = 0.01 ;
+	int QNSNOW(Time, bottom_top, south_north, west_east) ;
+		QNSNOW:description = "Snow Number concentration" ;
+		QNSNOW:least_significant_digit = 2. ;
+		QNSNOW:scale_factor = 0.01 ;
+	int QNRAIN(Time, bottom_top, south_north, west_east) ;
+		QNRAIN:description = "Rain Number concentration" ;
+		QNRAIN:least_significant_digit = 2. ;
+		QNRAIN:scale_factor = 0.01 ;
+	int QNGRAUPEL(Time, bottom_top, south_north, west_east) ;
+		QNGRAUPEL:description = "Graupel Number concentration" ;
+		QNGRAUPEL:least_significant_digit = 2. ;
+		QNGRAUPEL:scale_factor = 0.01 ;
+	ushort TKE_PBL(Time, bottom_top_stag, south_north, west_east) ;
+		TKE_PBL:description = "TKE from PBL" ;
+		TKE_PBL:least_significant_digit = 2. ;
+		TKE_PBL:scale_factor = 0.01 ;
+	uint RAINC(Time, south_north, west_east) ;
+		RAINC:description = "ACCUMULATED TOTAL CUMULUS PRECIPITATION" ;
+		RAINC:least_significant_digit = 2. ;
+		RAINC:scale_factor = 0.01 ;
+	uint RAINNC(Time, south_north, west_east) ;
+		RAINNC:description = "ACCUMULATED TOTAL GRID SCALE PRECIPITATION" ;
+		RAINNC:least_significant_digit = 2. ;
+		RAINNC:scale_factor = 0.01 ;
+	ushort SWDOWN(Time, south_north, west_east) ;
+		SWDOWN:description = "DOWNWARD SHORT WAVE FLUX AT GROUND SURFACE" ;
+		SWDOWN:least_significant_digit = 1. ;
+		SWDOWN:scale_factor = 0.1 ;
+	ushort UST(Time, south_north, west_east) ;
+		UST:description = "U* IN SIMILARITY THEORY" ;
+		UST:least_significant_digit = 2. ;
+		UST:scale_factor = 0.01 ;
+	uint PBLH(Time, south_north, west_east) ;
+		PBLH:description = "PBL HEIGHT" ;
+		PBLH:least_significant_digit = 1. ;
+		PBLH:scale_factor = 0.1 ;
+	ushort SAVE_TOPO_FROM_REAL(Time) ;
+		SAVE_TOPO_FROM_REAL:description = "1=original topo from real/0=topo modified by WRF" ;
+		SAVE_TOPO_FROM_REAL:least_significant_digit = 4. ;
+		SAVE_TOPO_FROM_REAL:scale_factor = 0.0001 ;
+	ushort SEED1(Time) ;
+		SEED1:description = "RANDOM SEED NUMBER 1" ;
+		SEED1:least_significant_digit = 4. ;
+		SEED1:scale_factor = 0.0001 ;
+	ushort SEED2(Time) ;
+		SEED2:description = "RANDOM SEED NUMBER 2" ;
+		SEED2:least_significant_digit = 4. ;
+		SEED2:scale_factor = 0.0001 ;
+	ushort SST(Time, south_north, west_east) ;
+		SST:description = "SEA SURFACE TEMPERATURE" ;
+		SST:least_significant_digit = 2. ;
+		SST:scale_factor = 0.01 ;
+
+// global attributes:
+		:_NCProperties = "version=1|netcdflibversion=4.4.1|hdf5libversion=1.8.17" ;
+		:TITLE = " OUTPUT FROM WRF V3.6.1 MODEL" ;
+		:START_DATE = "2016-10-08_00:00:00" ;
+		:SIMULATION_START_DATE = "2015-08-15_00:00:00" ;
+		:WEST-EAST_GRID_DIMENSION = 121 ;
+		:SOUTH-NORTH_GRID_DIMENSION = 111 ;
+		:BOTTOM-TOP_GRID_DIMENSION = 65 ;
+		:DX = 10000.f ;
+		:DY = 10000.f ;
+		:STOCH_FORCE_OPT = 0 ;
+		:GRIDTYPE = "C" ;
+		:DIFF_OPT = 1 ;
+		:KM_OPT = 4 ;
+		:DAMP_OPT = 3 ;
+		:DAMPCOEF = 0.2f ;
+		:KHDIF = 0.f ;
+		:KVDIF = 0.f ;
+		:MP_PHYSICS = 10 ;
+		:RA_LW_PHYSICS = 4 ;
+		:RA_SW_PHYSICS = 4 ;
+		:SF_SFCLAY_PHYSICS = 2 ;
+		:SF_SURFACE_PHYSICS = 2 ;
+		:BL_PBL_PHYSICS = 2 ;
+		:CU_PHYSICS = 3 ;
+		:SF_LAKE_PHYSICS = 0 ;
+		:SURFACE_INPUT_SOURCE = 1 ;
+		:SST_UPDATE = 1 ;
+		:GRID_FDDA = 0 ;
+		:GFDDA_INTERVAL_M = 0 ;
+		:GFDDA_END_H = 0 ;
+		:GRID_SFDDA = 0 ;
+		:SGFDDA_INTERVAL_M = 0 ;
+		:SGFDDA_END_H = 0 ;
+		:HYPSOMETRIC_OPT = 2 ;
+		:SF_URBAN_PHYSICS = 0 ;
+		:SHCU_PHYSICS = 0 ;
+		:MFSHCONV = 0 ;
+		:FEEDBACK = 0 ;
+		:SMOOTH_OPTION = 2 ;
+		:SWRAD_SCAT = 1.f ;
+		:W_DAMPING = 1 ;
+		:ADAPT_DT_START = 60.f ;
+		:ADAPT_DT_MAX = 180.f ;
+		:ADAPT_DT_MIN = 30.f ;
+		:RADT = 10.f ;
+		:BLDT = 0.f ;
+		:CUDT = 0.f ;
+		:AER_OPT = 0 ;
+		:SWINT_OPT = 0 ;
+		:AER_TYPE = 1 ;
+		:AER_AOD550_OPT = 1 ;
+		:AER_ANGEXP_OPT = 1 ;
+		:AER_SSA_OPT = 1 ;
+		:AER_ASY_OPT = 1 ;
+		:AER_AOD550_VAL = 0.12f ;
+		:AER_ANGEXP_VAL = 1.3f ;
+		:AER_SSA_VAL = 1.401298e-45f ;
+		:AER_ASY_VAL = 1.401298e-45f ;
+		:MOIST_ADV_OPT = 1 ;
+		:SCALAR_ADV_OPT = 1 ;
+		:TKE_ADV_OPT = 1 ;
+		:DIFF_6TH_OPT = 0 ;
+		:DIFF_6TH_FACTOR = 0.12f ;
+		:OBS_NUDGE_OPT = 0 ;
+		:BUCKET_MM = -1.f ;
+		:BUCKET_J = -1.f ;
+		:PREC_ACC_DT = 0.f ;
+		:SF_OCEAN_PHYSICS = 0 ;
+		:ISFTCFLX = 0 ;
+		:ISHALLOW = 0 ;
+		:ISFFLX = 1 ;
+		:ICLOUD = 1 ;
+		:ICLOUD_CU = 0 ;
+		:TRACER_PBLMIX = 1 ;
+		:SCALAR_PBLMIX = 0 ;
+		:GRAV_SETTLING = 0 ;
+		:DFI_OPT = 0 ;
+		:WEST-EAST_PATCH_START_UNSTAG = 1 ;
+		:WEST-EAST_PATCH_END_UNSTAG = 120 ;
+		:WEST-EAST_PATCH_START_STAG = 1 ;
+		:WEST-EAST_PATCH_END_STAG = 121 ;
+		:SOUTH-NORTH_PATCH_START_UNSTAG = 1 ;
+		:SOUTH-NORTH_PATCH_END_UNSTAG = 110 ;
+		:SOUTH-NORTH_PATCH_START_STAG = 1 ;
+		:SOUTH-NORTH_PATCH_END_STAG = 111 ;
+		:BOTTOM-TOP_PATCH_START_UNSTAG = 1 ;
+		:BOTTOM-TOP_PATCH_END_UNSTAG = 64 ;
+		:BOTTOM-TOP_PATCH_START_STAG = 1 ;
+		:BOTTOM-TOP_PATCH_END_STAG = 65 ;
+		:GRID_ID = 1 ;
+		:PARENT_ID = 0 ;
+		:I_PARENT_START = 1 ;
+		:J_PARENT_START = 1 ;
+		:PARENT_GRID_RATIO = 1 ;
+		:DT = 93.85f ;
+		:CEN_LAT = 64.04f ;
+		:CEN_LON = -19.07001f ;
+		:TRUELAT1 = 65.f ;
+		:TRUELAT2 = 63.f ;
+		:MOAD_CEN_LAT = 64.04f ;
+		:STAND_LON = -19.f ;
+		:POLE_LAT = 90.f ;
+		:POLE_LON = 0.f ;
+		:GMT = 0.f ;
+		:JULYR = 2015 ;
+		:JULDAY = 227 ;
+		:MAP_PROJ = 1 ;
+		:MAP_PROJ_CHAR = "Lambert Conformal" ;
+		:MMINLU = "USGS" ;
+		:NUM_LAND_CAT = 28 ;
+		:ISWATER = 16 ;
+		:ISLAKE = 28 ;
+		:ISICE = 24 ;
+		:ISURBAN = 1 ;
+		:ISOILWATER = 14 ;
+		:history = "Created with python at 2017-12-03 22:03:31 by or" ;
+		:institution = "Belgingur" ;
+		:source = "/sleggjan/shared/output/RAV2/2015-16/wrfout_d01_2016-10-15_00:00:00" ;
+		:description = "Reduced version of: /sleggjan/shared/output/RAV2/2015-16/wrfout_d01_2016-10-15_00:00:00" ;
+data:
+
+ Times =
+  "2016-10-15_00:00:00",
+  "2016-10-15_03:00:00",
+  "2016-10-15_06:00:00",
+  "2016-10-15_09:00:00",
+  "2016-10-15_12:00:00",
+  "2016-10-15_15:00:00",
+  "2016-10-15_18:00:00",
+  "2016-10-15_21:00:00",
+  "2016-10-16_00:00:00",
+  "2016-10-16_03:00:00",
+  "2016-10-16_06:00:00",
+  "2016-10-16_09:00:00",
+  "2016-10-16_12:00:00",
+  "2016-10-16_15:00:00",
+  "2016-10-16_18:00:00",
+  "2016-10-16_21:00:00",
+  "2016-10-17_00:00:00",
+  "2016-10-17_03:00:00",
+  "2016-10-17_06:00:00",
+  "2016-10-17_09:00:00",
+  "2016-10-17_12:00:00",
+  "2016-10-17_15:00:00",
+  "2016-10-17_18:00:00",
+  "2016-10-17_21:00:00",
+  "2016-10-18_00:00:00",
+  "2016-10-18_03:00:00",
+  "2016-10-18_06:00:00",
+  "2016-10-18_09:00:00",
+  "2016-10-18_12:00:00",
+  "2016-10-18_15:00:00",
+  "2016-10-18_18:00:00",
+  "2016-10-18_21:00:00",
+  "2016-10-19_00:00:00",
+  "2016-10-19_03:00:00",
+  "2016-10-19_06:00:00",
+  "2016-10-19_09:00:00",
+  "2016-10-19_12:00:00",
+  "2016-10-19_15:00:00",
+  "2016-10-19_18:00:00",
+  "2016-10-19_21:00:00",
+  "2016-10-20_00:00:00",
+  "2016-10-20_03:00:00",
+  "2016-10-20_06:00:00",
+  "2016-10-20_09:00:00",
+  "2016-10-20_12:00:00",
+  "2016-10-20_15:00:00",
+  "2016-10-20_18:00:00",
+  "2016-10-20_21:00:00",
+  "2016-10-21_00:00:00" ;
+}
