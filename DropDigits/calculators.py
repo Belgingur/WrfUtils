@@ -236,7 +236,7 @@ def height(_chunk_calculator: ChunkCalculator):
     """ :param _chunk_calculator: Super magic variable giving the ChunkCalculator which is calling use. """
     return np.array(_chunk_calculator.heights)
 
-
+# for information on rotated winds, see http://www2.mmm.ucar.edu/wrf/users/FAQ_files/Miscellaneous.html
 @derived(
     description='x-wind component in earth-coordinates',
     units='m s-1',
@@ -244,7 +244,7 @@ def height(_chunk_calculator: ChunkCalculator):
 def U_true(U, V, COSALPHA, SINALPHA):
     ca = np.expand_dims(COSALPHA, 1)
     sa = np.expand_dims(SINALPHA, 1)
-    return ca * U + sa * V
+    return ca * U - sa * V
 
 
 @derived(
@@ -254,7 +254,7 @@ def U_true(U, V, COSALPHA, SINALPHA):
 def V_true(U, V, COSALPHA, SINALPHA):
     ca = np.expand_dims(COSALPHA, 1)
     sa = np.expand_dims(SINALPHA, 1)
-    return -sa * U + ca * V
+    return sa * U + ca * V
 
 
 @derived(
@@ -264,14 +264,13 @@ def V_true(U, V, COSALPHA, SINALPHA):
 def wind_speed(U, V):
     return np.sqrt(U ** 2 + V ** 2)
 
-
 @derived(
     description='wind direction',
     units='degrees',
     datatype=np.uint16,
 )
 def wind_dir(U_true, V_true):
-    return np.degrees(np.arctan2(V_true, U_true))
+    return (270 - np.degrees(np.arctan2(-1*V_true, -1*U_true))) % 360
 
 
 @derived(

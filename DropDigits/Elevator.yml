@@ -11,7 +11,7 @@ custom_attributes:
 
 # Altitudes [m] at which to interpolate 3D variables
 heights:
-  - 10
+#  - 10
   - 50
   - 80
   - 100
@@ -45,4 +45,4 @@ variables:
 chunking: True
 
 # Compression level for output file. 0 to disable, values 1-9 are passed to zlib
-complevel: 4
+complevel: 0
