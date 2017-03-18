@@ -135,8 +135,8 @@ def test_create_output_variables_fallback():
              dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
         call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
-        call('HGT', np.float32, chunksizes=(128, 16, 16), complevel=7,
-             dimensions=('Time', 'south_north', 'west_east'), shuffle=True, zlib=True),
+        call('HGT', np.float32, chunksizes=(128, 19), complevel=7,
+             dimensions=('south_north', 'west_east'), shuffle=True, zlib=True),
     ]
 
 

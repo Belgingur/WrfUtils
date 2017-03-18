@@ -5,13 +5,13 @@ import os
 import socket
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Iterator, Iterable
 from typing import List, Tuple
 from typing import Union
 
 import numpy as np
 import yaml
-from netCDF4 import Dataset, Variable
+from netCDF4 import Dataset, Variable, Dimension
 
 LOG = logging.getLogger('belgingur.utils')
 
@@ -72,31 +72,22 @@ def memoize(f):
     return helper
 
 
-def pick_chunk_sizes(dimensions: List[str], max_k: int = None) -> Tuple[int]:
+def pick_chunk_sizes(in_ds, dimensions: List[str], max_k: int = None) -> Tuple[int]:
     """
     Given a variable, pick the appropriate chunk sizes to apply to it given it's shape
     """
-    ndim = len(dimensions)
-    chunk_sizes = CHUNK_SIZES[ndim - 1]
 
-    def index(a, *ss):
-        """ Returns the first index in a where an element in ss is found or None if not found """
-        for i, e in enumerate(a):
-            for s in ss:
-                if e == s:
-                    return i
-        return None
+    def adjust_sizes(unadjusted: Iterable[int]) -> Iterator[int]:
+        for cs, dim_name in zip(unadjusted, dimensions):
+            dim = in_ds.dimensions[dim_name]  # type: Dimension
+            if dim.size is not None:
+                cs = min(dim.size, cs)
+            if dim_name in (DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG):
+                cs = min(cs, max_k)
+            yield cs
 
-    if max_k is not None:
-        # Clip the vertical dimension
-        k_idx = index(dimensions, DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG)
-        if k_idx is not None and chunk_sizes[k_idx] > max_k:
-            chunk_sizes = tuple(
-                s if i != k_idx else max_k
-                for i, s in enumerate(chunk_sizes)
-            )
-
-    return chunk_sizes
+    unadjusted = CHUNK_SIZES[len(dimensions) - 1]
+    return tuple(adjust_sizes(unadjusted))
 
 
 def read_wrf_dates(in_ds: Dataset) -> np.ndarray:

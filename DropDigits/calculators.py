@@ -310,16 +310,52 @@ def potential_temperature(T):
 
 
 @derived(
+    units='K',
     datatype=np.uint16,
-    units='K'
 )
 def temperature(potential_temperature, pressure):
     return potential_temperature * (pressure / 100000.0) ** 0.2856
 
 
 @derived(
+    units='kg m-3',
     datatype=np.uint16,
-    units='kg m-3'
 )
 def density(ALT):
     return 1/ALT
+
+
+@derived(
+    dimensions=('south_north', 'west_east'),
+    description='Terrain Height',
+    units='m',
+    datatype=np.int32,
+    scale_factor=0.001,
+)
+def HGT(HGT_M):
+    """ Called if HGT is not present in input and works by renaming HGT_M from geo file. """
+    return HGT_M
+
+
+@derived(
+    dimensions=('south_north', 'west_east'),
+    description='LATITUDE, SOUTH IS NEGATIVE',
+    units='degree_north',
+    datatype=np.uint16,
+    scale_factor=0.01,
+)
+def XLAT(XLAT_M):
+    """ Called if XLAT is not present in input and works by renaming XLAT_M from geo file. """
+    return XLAT_M
+
+
+@derived(
+    dimensions=('south_north', 'west_east'),
+    description='LONGITUDE, WEST IS NEGATIVE',
+    units='degree_east',
+    datatype=np.uint16,
+    scale_factor=0.01,
+)
+def XLONG(XLONG_M):
+    """ Called if XLAT is not present in input and works by renaming XLONG_M from geo file. """
+    return XLONG_M

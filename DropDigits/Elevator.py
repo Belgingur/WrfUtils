@@ -33,7 +33,14 @@ np.set_printoptions(4, edgeitems=3, linewidth=200)
 """ Names of static dimensions which can be read from another file from the same model config """
 DIM_NAMES_GEO = ('XLAT', 'XLAT_M', 'XLONG', 'XLONG_M', 'HGT', 'HGT_M', 'COSALPHA', 'SINALPHA')
 
-
+""" Variables where we drop the Time dimension. """
+VAR_NAMES_STATIC = (
+    'SINALPHA', 'COSALPHA',
+    'XLAT', 'XLAT_M', 'XLONG', 'XLONG_M',
+    'HGT', 'HGT_M', 'HGT_SHAD',
+    'MAPFAC', 'MAPFAC_M', 'MF_VX_INV',
+    'E', 'F',
+)
 def configure() -> (argparse.Namespace, dict):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', default='Elevator.yml',
@@ -113,14 +120,18 @@ def create_output_variables(
             source = calculators[var_name]
         else:
             raise ValueError('Unknown variable %s', var_name)
-        dimensions = tuple(destagger_dim_name(d) for d in source.dimensions)
+
+        dimensions = (destagger_dim_name(d) for d in source.dimensions)
+        if var_name in VAR_NAMES_STATIC:
+            dimensions = filter(lambda s: s != DIM_TIME, dimensions)
+        dimensions = tuple(dimensions)
 
         sf = getattr(source, 'scale_factor', 1)
         off = getattr(source, 'add_offset', 0)
         dtn = datatype_name(source.datatype)
         LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), dtn, sf, off)
 
-        chunk_sizes = pick_chunk_sizes(source.dimensions, elevation_limit) if chunking else None
+        chunk_sizes = pick_chunk_sizes(in_ds, dimensions, elevation_limit) if chunking else None
         out_var = out_ds.createVariable(var_name,
                                         source.datatype,
                                         dimensions=dimensions,
@@ -239,7 +250,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
         cc = ChunkCalculator(t_start, t_end, heights, above_ground)
         cc.add_dataset(in_ds)
         cc.add_dataset(geo_ds, geo_margin, DIM_NAMES_GEO)
-        cc.make_vars_static('SINALPHA', 'COSALPHA', 'XLAT', 'XLAT_M', 'XLONG', 'XLONG_M', 'HGT', 'HGT_M')
+        cc.make_vars_static(*VAR_NAMES_STATIC)
 
         LOG.info('Processing Variable')
         for out_var_name in out_var_names:
@@ -261,7 +272,6 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
                     'Unable to write out_chunk with shape %s to output variable of shape %s',
                     out_chunk.shape, out_var.shape)
                 exit(1)
-
 
             out_ds.sync()
             LOG.info('        %.3fs', time() - before_var)

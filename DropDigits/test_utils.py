@@ -31,7 +31,6 @@ def test_work_wrf_dates():
     times = [[b[i:i + 1] for i in range(len(b))] for b in times]
     times = np.array(times)
 
-    LOG.info('times: %s', times)
     ds = mock_dataset_meta(WRFOUT_AFRICA_DUMP)
     ds.variables['Times'].__getitem__.return_value = times
 
