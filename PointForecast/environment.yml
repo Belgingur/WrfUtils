@@ -1,0 +1,33 @@
+# Conda environment description:
+# * Install miniconda from http://continuum.io/downloads
+# * Run `conda env create -f environment.yml`
+# * Run `. activate PointForecast`
+
+name: PointForecast
+dependencies:
+  # Python Core
+  - python=2.7.*
+  - pyyaml=3.*
+#  - dateutil=2.4.*
+
+  # Testing
+  - mock=1
+  - nose=1.3
+
+  # Science
+  - numpy=1.11.*
+  - netcdf4=1.2.*
+
+  # Other
+  - pytz  # Always latest version
+
+
+
+# ALTERNATIVE CONDA CHANNEL INSTALLS
+# Each line has the format #channel:{channel-name} {spec1} {spec2} ... {specN}
+
+#channel:conda-forge netcdf4=1.2.*
+
+# NOTES:
+# - ncdump etc is broken in main channel is broken [logi:2017-08-29]
+#   https://groups.google.com/a/continuum.io/forum/#!msg/anaconda/gduHk0_b5o0/JS7kEqZ7AQAJ
