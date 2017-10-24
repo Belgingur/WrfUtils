@@ -10,10 +10,10 @@ import codecs
 import os
 import logging
 import re
+from math import isnan
 from collections import OrderedDict
 
 import yaml
-import numpy as np
 
 from utilities import make_regexp
 
@@ -22,49 +22,23 @@ LOG = logging.getLogger('belgingur.data_utils')
 COMPONENTS_ORDER = {'temp': 1, 'wind_speed': 2, 'wind_dir': 3, 'prec_rate': 4, 'pressure': 5, 'total_clouds': 6}
 
 
-# Timeseries
-
-def save_timeseries(data, filepath, metadata=OrderedDict(), separator=', ', valueformat='%.4f', nodata=-9999,
-                    comment_column_names=True):
+def save_timeseries(timestamps, data, filepath, metadata=OrderedDict(), separator=', ', valueformat='{:.4f}', nodata=-9999,
+                    comment_column_names=False):
 
     """ Save the timeseries with additional metadata in front. """
 
     LOG.info('Saving timeseries to %s', filepath)
-    headers = ['# %s: %s' % (k, v) for k, v in metadata.iteritems()]
+    headers = ['# {}: {}'.format(k, v) for k, v in metadata.iteritems()]
 
-    def joiner(table):
-        for row in zip(*table):
-            yield ','.join(row)
+    data_keys = sorted(data.keys(), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
+    timestamps.sort()
 
-    if isinstance(data, dict) and isinstance(data.get('timestamps'), np.ndarray):
-        # We have a dict with a bunch of numpy arrays including one for timestamps
-        data_keys = sorted(data.keys(), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
-        to_save = joiner(data[k] for k in data_keys)
-
-    elif isinstance(data, dict):
-        # We have a dict with a bunch of dicts from timestamps to values
-        data_keys = sorted(data.keys(), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
-        ts_keys_sorted = sorted(list(set([d for dk in data_keys for d in data[dk].keys()])))
-        to_save = []
-        for ts in ts_keys_sorted:
-            values = [ts.strftime('%Y-%m-%dT%H:%M')]
-            for key in data_keys:
-                values.append(valueformat % data[key].get(ts, nodata))
-            to_save.append(separator.join(values))
-
-    elif isinstance(data, tuple):
-        # We have a tuple with a bunch of dicts from timestamps to values
-        data_keys = sorted(data[1].keys(), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
-        ts_keys_sorted = sorted(data[0])
-        to_save = []
-        for i, ts in enumerate(ts_keys_sorted):
-            values = [ts.strftime('%Y-%m-%dT%H:%M')]
-            for key in data_keys:
-                values.append(valueformat % data[1][key][i])
-            to_save.append(separator.join(values))
-
-    else:
-        raise TypeError('Unsupported data type for the data: %s' % type(data))
+    to_save = []
+    for i, ts in enumerate(timestamps):
+        values = [ts.strftime('%Y-%m-%dT%H:%M')]
+        for key in data_keys:
+            values.append(valueformat.format(data[key][i]) if not isnan(data[key][i]) else str(nodata))
+        to_save.append(separator.join(values))
 
     try:
         with codecs.open(filepath, 'w', encoding='utf-8') as out:
@@ -78,8 +52,6 @@ def save_timeseries(data, filepath, metadata=OrderedDict(), separator=', ', valu
         LOG.exception('Problem with saving timeseries to file', exc)
         raise
 
-
-# Files
 
 def templated_filename(config, create_dirs=True, ext='csv', char_mapping=None, **kwargs):
 
@@ -98,8 +70,6 @@ def templated_filename(config, create_dirs=True, ext='csv', char_mapping=None, *
 
     return path
 
-
-# Languages
 
 def map_chars(text, char_map):
     if char_map is None:
@@ -174,5 +144,3 @@ def select_stations(target, source):
 
     required_keys = list(set(required_keys))
     return [data[k] for k in required_keys]
-
-

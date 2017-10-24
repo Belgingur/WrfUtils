@@ -55,7 +55,7 @@ def circular_weighted_avg(m, weights):
     return value
 
 
-def make_pf(data, weights, constant, circular=False):
+def make_pf(data, weights, constant=0, circular=False):
 
     """ Apply weights to data taken from a WRF out file and return a timeseries of point forecasts """
 
@@ -78,29 +78,25 @@ def make_forecast_timeseries(station, var, args, data_gridded, data_gridded_lt):
 
     LOG.info('Processing station %s, variable %s', station['ref'], var)
 
-    station_ref = station.get('station_ref', station['ref'])
-
-    LOG.info('Performing bilinear interpolation.')
     try:
-        weights, constant = bilinear_on_demand(station, args.wrfout, args.margin), 0
-        LOG.info(weights)
+        weights = bilinear_on_demand(station, args.wrfout, args.margin)
     except NoClosePointError as e:
         LOG.debug(e)
         LOG.warning('Location of station %s outside wrfout grid, ignoring further processing for that station.', station['ref'])
         raise TargetOutsideGridError()
 
-    pf = make_pf(data_gridded[var], weights, constant, circular=(var == 'wind_dir'))
+    pf = make_pf(data_gridded[var], weights, circular=(var == 'wind_dir'))
 
     if args.wrfout_long_term:
         try:
-            weights, constant = bilinear_on_demand(station, args.wrfout_long_term), 0
+            weights = bilinear_on_demand(station, args.wrfout_long_term)
         except NoClosePointError as e:
             LOG.debug(e)
             LOG.warning('Station location outside wrfout-long-term grid, ignoring further processing for that station.')
             LOG.warning("The main wrfout file covered the grid, while the long term wrfout didn't. Are you sure the grids were properly defined?")
 
             raise TargetOutsideGridError()
-        pf.extend(make_pf(data_gridded_lt[var], weights, constant, circular=(var == 'wind_dir')))
+        pf.extend(make_pf(data_gridded_lt[var], weights, circular=(var == 'wind_dir')))
 
     return pf
 
@@ -181,7 +177,7 @@ def main():
             ('latitude', '{:.4f}'.format(location['lat']))
         ])
 
-        save_timeseries((timestamps, pf), pf_file, metadata)
+        save_timeseries(timestamps, pf, pf_file, metadata)
 
 
 if __name__ == '__main__':
