@@ -13,80 +13,75 @@ from data_utils import save_timeseries, templated_filename, map_chars, select_st
 
 test_path = os.path.join(os.path.dirname(__file__), 'data', 'test_timeseries.txt')
 
-# Small time-series for testing
-ts = dict(
-    wind_dir={
-        mk_datetime(2014, 2, 1, 10): 2.454545,
-        mk_datetime(2014, 2, 1, 11): 2.5
-    }
+
+ts = [mk_datetime(2014, 2, 1, 10), mk_datetime(2014, 2, 1, 11)]
+data = dict(
+    wind_dir=[2.454545, 2.5]
 )
 
-# Slightly larger time-series for testing
-ts2 = dict(
-    wind_dir=ts['wind_dir'],
-    temp={
-        mk_datetime(2014, 2, 1, 10): 10.6161616,
-        mk_datetime(2014, 2, 1, 12): 10.2
-    }
+ts2 = [mk_datetime(2014, 2, 1, 10), mk_datetime(2014, 2, 1, 11), mk_datetime(2014, 2, 1, 12)]
+data2 = dict(
+    wind_dir=[2.454545, 2.5, float('nan')],
+    temp=[10.6161616, float('nan'), 10.2]
 )
 
 
 def test_save_timeseries__simple():
-    save_timeseries(ts, test_path)
+    save_timeseries(ts, data, test_path)
     with open(test_path) as f:
         lines = f.readlines()
     assert_list_equal([
-        '# columns: time, wind_dir\n',
+        'time, wind_dir\n',
         '2014-02-01T10:00, 2.4545\n',
         '2014-02-01T11:00, 2.5000\n'
     ], lines)
 
 
 def test_save_timeseries__header():
-    save_timeseries(ts, test_path, {'this_is_header': 'HEADER'})
+    save_timeseries(ts, data, test_path, {'this_is_header': 'HEADER'})
     with open(test_path) as f:
         lines = f.readlines()
     assert_list_equal([
         '# this_is_header: HEADER\n',
-        '# columns: time, wind_dir\n',
+        'time, wind_dir\n',
         '2014-02-01T10:00, 2.4545\n',
         '2014-02-01T11:00, 2.5000\n'
     ], lines)
 
 
 def test_save_timeseries__formating():
-    save_timeseries(ts, test_path, separator='::', valueformat='%.2f')
+    save_timeseries(ts, data, test_path, separator='::', valueformat='{:.2f}')
     with open(test_path) as f:
         lines = f.readlines()
-    assert_list_equal(['# columns: time::wind_dir\n', '2014-02-01T10:00::2.45\n', '2014-02-01T11:00::2.50\n'], lines)
+    assert_list_equal([u'time::wind_dir\n', '2014-02-01T10:00::2.45\n', '2014-02-01T11:00::2.50\n'], lines)
 
 
 def test_save_timeseries__simple2():
-    save_timeseries(ts2, test_path)
+    save_timeseries(ts2, data2, test_path)
     with open(test_path) as f:
         lines = f.readlines()
     assert_list_equal([
-        '# columns: time, temp, wind_dir\n',
+        'time, temp, wind_dir\n',
         '2014-02-01T10:00, 10.6162, 2.4545\n',
-        '2014-02-01T11:00, -9999.0000, 2.5000\n',
-        '2014-02-01T12:00, 10.2000, -9999.0000\n'
+        '2014-02-01T11:00, -9999, 2.5000\n',
+        '2014-02-01T12:00, 10.2000, -9999\n'
     ], lines)
 
 
 def test_save_timeseries__utf8():
-    save_timeseries(ts, test_path, {'name': 'Ólafsfjarðarmúli'})
+    save_timeseries(ts, data, test_path, {'name': 'Ólafsfjarðarmúli'})
     with codecs.open(test_path, encoding='UTF8') as f:
         lines = f.readlines()
     assert_list_equal([
         '# name: Ólafsfjarðarmúli\n',
-        '# columns: time, wind_dir\n',
+        'time, wind_dir\n',
         '2014-02-01T10:00, 2.4545\n',
         '2014-02-01T11:00, 2.5000\n'
     ], lines)
 
 
 def test_save_timeseries__header__not_comment_column_names():
-    save_timeseries(ts, test_path, {'name': 'Ólafsfjarðarmúli'}, comment_column_names=False)
+    save_timeseries(ts, data, test_path, {'name': 'Ólafsfjarðarmúli'}, comment_column_names=False)
     with codecs.open(test_path, encoding='UTF8') as f:
         lines = f.readlines()
     assert_list_equal([

@@ -9,7 +9,6 @@ Functions to perform bilinear interpolation based only on the station lon/lat an
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import functools
 import math
 import logging
 
@@ -22,16 +21,8 @@ LOG = logging.getLogger('belgingur.bilinear')
 EARTH_RADIUS_M = 6378168
 
 
-class NoClosePointError(ValueError):
-    def __init__(self, *args, **kwargs):
-        super(NoClosePointError, self).__init__(*args, **kwargs)
-
-    def __str__(self):
-        return super(NoClosePointError, self).__str__()
-
-    def __repr__(self):
-        return super(NoClosePointError, self).__repr__()
-
+class TargetOutsideGridError(ValueError):
+    """ Raised when the target point is outside the borders of the forecast grid. """
 
 def distance_to_side(point_1, point_2, station):
 
@@ -121,22 +112,6 @@ def point_info(i, j, lons, lats):
     return {'point_id': (i, j), 'lon': lons[j, i], 'lat': lats[j, i]}
 
 
-def cache_bilinear_on_demand(obj):
-
-    """
-    Memoize decorator to cache results for the case when we call the same station & wrfout pair when iterating over components.
-    """
-
-    cache = obj.cache = {}
-
-    @functools.wraps(obj)
-    def memoizer(station, wrfout, margin):
-        if (station['ref'], wrfout) not in cache:
-            cache[(station['ref'], wrfout, margin)] = obj(station, wrfout, margin)
-        return cache[(station['ref'], wrfout, margin)]
-    return memoizer
-
-
 def extract_coordinates(wrfout, margin):
     with netCDF4.Dataset(wrfout) as dataset:
         if margin:
@@ -150,8 +125,7 @@ def extract_coordinates(wrfout, margin):
     return lats, lons
 
 
-@cache_bilinear_on_demand
-def bilinear_on_demand(station, wrfout, margin=0):
+def do_weights(station, wrfout, margin=0, nearest_neighbour=False):
 
     """
     Given a station and wrfout pair, seeks the 'corner grid points' for the station location
@@ -176,7 +150,10 @@ def bilinear_on_demand(station, wrfout, margin=0):
             (1, 1): point_info(nearest['i'] + x2_off, nearest['j'] + y2_off, lons, lats)
         }
     except IndexError:
-        raise NoClosePointError('The selected point is outside the borders of the grid.')
+        raise TargetOutsideGridError('The selected point is outside the borders of the grid.')
+
+    if nearest_neighbour:
+        return {nearest['point_id']: 1}
 
     weights = generate_weights_bilinear(station, corners)
     weights = {k: v for [k, v] in weights}

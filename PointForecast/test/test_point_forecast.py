@@ -5,7 +5,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 from nose.tools import assert_almost_equal
 
-from point_forecast import make_pf, weighted_avg, circular_weighted_avg
+from point_forecast import calculate_pf, weighted_avg, circular_weighted_avg
 
 
 def test_circular_weighted_avg():
@@ -36,7 +36,7 @@ def test_make_pf():
     weights = {(1, 1): 0.2, (2, 2): 0.3, (4, 0): 0.5} # note: this is (i, j) and the grid is (j, i)
     constant = 0.025
 
-    result = make_pf(grid, weights, constant)
+    result = calculate_pf(grid, weights, constant)
     expected = [0.2 * 6 + 0.3 * 12 + 0.5 * 4 + 0.025, 0.2 * 21 + 0.3 * 27 + 0.5 * 19 + 0.025]
 
     for (a, b) in zip(expected, result):

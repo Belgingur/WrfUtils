@@ -17,20 +17,12 @@ import netCDF4
 import numpy as np
 
 from wrfout_reader import WRFReader
-from bilinear_interpolation import bilinear_on_demand, NoClosePointError
+from bilinear_interpolation import do_weights, TargetOutsideGridError
 from utilities import load_config, configure_logging, parse_iso_date
 from data_utils import save_timeseries, templated_filename, load_point_metadata
 
 
 LOG = logging.getLogger('belgingur.point_forecast')
-
-
-class TargetOutsideGridError(ValueError):
-    """ Raised when the target point is outside the borders of the forecast grid. """
-
-
-class NotEnoughDataError(ValueError):
-    """ Raised when there is no data about weights, and --no-adhoc-interpolation prevented from interpolating on-demand. """
 
 
 def weighted_avg(data, weights):
@@ -55,7 +47,7 @@ def circular_weighted_avg(m, weights):
     return value
 
 
-def make_pf(data, weights, constant=0, circular=False):
+def calculate_pf(data, weights, constant=0, circular=False):
 
     """ Apply weights to data taken from a WRF out file and return a timeseries of point forecasts """
 
@@ -70,35 +62,6 @@ def make_pf(data, weights, constant=0, circular=False):
         pf_series.append(avg)
 
     return pf_series
-
-
-def make_forecast_timeseries(station, var, args, data_gridded, data_gridded_lt):
-
-    """ Get the weights and produce point forecast timeseries. """
-
-    LOG.info('Processing station %s, variable %s', station['ref'], var)
-
-    try:
-        weights = bilinear_on_demand(station, args.wrfout, args.margin)
-    except NoClosePointError as e:
-        LOG.debug(e)
-        LOG.warning('Location of station %s outside wrfout grid, ignoring further processing for that station.', station['ref'])
-        raise TargetOutsideGridError()
-
-    pf = make_pf(data_gridded[var], weights, circular=(var == 'wind_dir'))
-
-    if args.wrfout_long_term:
-        try:
-            weights = bilinear_on_demand(station, args.wrfout_long_term)
-        except NoClosePointError as e:
-            LOG.debug(e)
-            LOG.warning('Station location outside wrfout-long-term grid, ignoring further processing for that station.')
-            LOG.warning("The main wrfout file covered the grid, while the long term wrfout didn't. Are you sure the grids were properly defined?")
-
-            raise TargetOutsideGridError()
-        pf.extend(make_pf(data_gridded_lt[var], weights, circular=(var == 'wind_dir')))
-
-    return pf
 
 
 def load_forecast_data(wrfout, wrfout_long_term, components, spinup):
@@ -129,6 +92,29 @@ def load_forecast_data(wrfout, wrfout_long_term, components, spinup):
     return data_gridded, data_gridded_lt, timestamps
 
 
+def timeseries_for_location(location, args, data_gridded, data_gridded_lt):
+
+    weights = do_weights(location, args.wrfout, args.margin, args.nearest_neighbour)
+
+    if args.wrfout_long_term:
+        weights_lt = do_weights(location, args.wrfout_long_term, args.margin, args.nearest_neighbour)
+
+    pf = {}
+
+    for var in args.components:
+        LOG.info('Processing station %s, variable %s', location['ref'], var)
+
+        pfvar = calculate_pf(data_gridded[var], weights, circular=(var == 'wind_dir'))
+
+        if args.wrfout_long_term:
+            pfvar_long_term = calculate_pf(data_gridded_lt[var], weights_lt, circular=(var == 'wind_dir'))
+            pfvar.extend(pfvar_long_term)
+
+        pf[var] = pfvar
+
+    return pf
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=netCDF4.sys.modules[__name__].__doc__)
     parser.add_argument('--config', required=True, help='Config file for program. Required')
@@ -144,9 +130,11 @@ def parse_args():
     parser.add_argument('--wrfout', required=True, help='Grid forecast file to use for point forecast generation.')
     parser.add_argument('--wrfout-long-term', help='Additional wrfout can be added with lower resolution and '
                                                    'times ranging farther than the basic wrfout.')
-    parser.add_argument('--margin', type=int, default=0,
+    parser.add_argument('--margin', type=int, default=0,  # TODO this could be in config
                         help='When using on-demand bilinear interpolation, describes the number of cells '
                              'from the border of the domain that we want to discard from processing')
+    parser.add_argument('--nearest-neighbour', action='store_true', default=False,
+                        help='Use only the closest point for generating the forecast')
     return parser.parse_args()
 
 
@@ -159,15 +147,13 @@ def main():
     data_gridded, data_gridded_lt, timestamps = load_forecast_data(args.wrfout, args.wrfout_long_term, args.components, config.get('spinup', 0))
 
     for location in stations_pf:
-        pf = {}
         try:
-            for var in args.components:
-                pf[var] = make_forecast_timeseries(location, var, args, data_gridded, data_gridded_lt)
-        except (TargetOutsideGridError, NotEnoughDataError):
-            # skip this location
+            pf = timeseries_for_location(location, args, data_gridded, data_gridded_lt)
+        except TargetOutsideGridError:
+            LOG.info('Location of station %s outside wrfout grid, ignoring the station.', location['ref'])
             continue
 
-        pf_file = templated_filename(config, analysis_date=args.analysis, ref=location['ref'], create_dirs=True)
+        filename = templated_filename(config, analysis_date=args.analysis, ref=location['ref'], create_dirs=True)
 
         metadata = OrderedDict([
             ('ref', location['ref']),
@@ -177,7 +163,7 @@ def main():
             ('latitude', '{:.4f}'.format(location['lat']))
         ])
 
-        save_timeseries(timestamps, pf, pf_file, metadata)
+        save_timeseries(timestamps, pf, filename, metadata)
 
 
 if __name__ == '__main__':
