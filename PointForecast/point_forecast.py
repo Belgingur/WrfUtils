@@ -19,7 +19,7 @@ import numpy as np
 from wrfout_reader import WRFReader
 from bilinear_interpolation import do_weights, TargetOutsideGridError
 from utilities import load_config, configure_logging, parse_iso_date
-from data_utils import save_timeseries, templated_filename, load_point_metadata
+from data_utils import save_timeseries, templated_filename, load_stations
 
 
 LOG = logging.getLogger('belgingur.point_forecast')
@@ -64,7 +64,7 @@ def calculate_pf(data, weights, constant=0, circular=False):
     return pf_series
 
 
-def load_forecast_data(wrfout, wrfout_long_term, components, spinup):
+def load_forecast(wrfout, wrfout_long_term, components, spinup):
 
     """ Load forecast from a wrfout file with optional second dataset for a long term forecast. """
 
@@ -78,7 +78,7 @@ def load_forecast_data(wrfout, wrfout_long_term, components, spinup):
     if wrfout_long_term:
         LOG.info('A long term forecast from %s is being read and merged with the high-resolution short-term forecast.',
                  wrfout_long_term)
-        LOG.info('The weights for long term forecast would be generated ad hoc by bilinear interpolation.')
+
         with netCDF4.Dataset(wrfout_long_term, mode='r') as nc_data:
             reader = WRFReader(nc_data)
             timestamps_lt = reader.get_timestamps(0)
@@ -143,8 +143,8 @@ def main():
     configure_logging(args.log_config)
     config = load_config(args.config)
 
-    stations_pf = load_point_metadata(config)
-    data_gridded, data_gridded_lt, timestamps = load_forecast_data(args.wrfout, args.wrfout_long_term, args.components, config.get('spinup', 0))
+    stations_pf = load_stations(config)
+    data_gridded, data_gridded_lt, timestamps = load_forecast(args.wrfout, args.wrfout_long_term, args.components, config.get('spinup', 0))
 
     for location in stations_pf:
         try:

@@ -6,10 +6,10 @@ import codecs
 import os
 
 from nose.tools import assert_list_equal, assert_equal, assert_raises
-
+from mock import patch
 from utilities import mk_datetime
-from data_utils import save_timeseries, templated_filename, map_chars, select_stations
-
+from data_utils import save_timeseries, templated_filename, map_chars, select_stations, load_stations
+import data_utils
 
 test_path = os.path.join(os.path.dirname(__file__), 'data', 'test_timeseries.txt')
 
@@ -163,3 +163,39 @@ def test_select_stations():
     target = 'vi.is.[15]'
     result = select_stations(target, source)
     assert_equal(sorted([r['ref'] for r in result]), sorted(['vi.is.1', 'vi.is.5']))
+
+
+def test_load_point_metadata__single_file():
+    cfg_all_stations = dict(
+        key='value',
+        stations=[
+            dict(lat=10, lon=10, ref='10', name='Station 10'),
+            dict(lat=11, lon=11, ref='11', name='Station 11')
+        ]
+    )
+    expected = [
+            dict(lat=10, lon=10, ref='10', name='Station 10'),
+            dict(lat=11, lon=11, ref='11', name='Station 11')
+    ]
+    actual = load_stations(cfg_all_stations)
+    assert_list_equal(expected, actual)
+
+
+def test_load_point_metadata__meta_file():
+    meta_stations = [
+        dict(lat=10, lon=10, ref='10', name='Station 10'),
+        dict(lat=11, lon=11, ref='11', name='Station 11'),
+        dict(lat=55, lon=55, ref='55', name='Station 55')
+    ]
+    config = dict(
+        station_metadata='stations.yml',
+        stations='1%'
+    )
+    expected = [
+            dict(lat=10, lon=10, ref='10', name='Station 10'),
+            dict(lat=11, lon=11, ref='11', name='Station 11')
+    ]
+
+    with patch('data_utils.read_all_stations', return_value=meta_stations):
+        actual = data_utils.load_stations(config)
+    assert_list_equal(expected, sorted(actual))

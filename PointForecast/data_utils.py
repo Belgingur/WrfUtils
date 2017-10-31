@@ -84,16 +84,20 @@ def map_chars(text, char_map):
     return text
 
 
-def load_point_metadata(config):
+def load_stations(config):
 
-    """ Load information about stations and select those relevant to stations we are interested in. """
+    """ Load information about stations we are interested in. """
 
-    stations_img = config['station_metadata']
-    known_stations = read_all_stations(stations_img)
+    cfg_stations = config['stations']
 
-    stations_pf = select_stations(config.get('stations', []), known_stations)
+    # If the metadata about stations is given in the config, return all of that data.
+    if isinstance(cfg_stations, list) and all([isinstance(s, dict) for s in cfg_stations]):
+        return cfg_stations
 
-    return stations_pf
+    known_stations = read_all_stations(config['station_metadata'])
+
+    stations = select_stations(cfg_stations, known_stations)
+    return stations
 
 
 def read_all_stations(filename):
