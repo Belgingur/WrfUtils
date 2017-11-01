@@ -33,20 +33,21 @@ def save_timeseries(timestamps, data, filepath, metadata=OrderedDict(), separato
     data_keys = sorted(data.keys(), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
     timestamps.sort()
 
-    to_save = []
+    value_lines = []
     for i, ts in enumerate(timestamps):
         values = [ts.strftime('%Y-%m-%dT%H:%M')]
         for key in data_keys:
             values.append(valueformat.format(data[key][i]) if not isnan(data[key][i]) else str(nodata))
-        to_save.append(separator.join(values))
+        value_lines.append(separator.join(values))
 
+    header_lines = '\n'.join(headers) + ('\n' if headers else '')
+    header_lines += separator.join(['# columns: time' if comment_column_names else 'time'] + data_keys) + '\n'
     try:
         with codecs.open(filepath, 'w', encoding='utf-8') as out:
-            out.write('\n'.join(headers) + ('\n' if headers else ''))
-            out.write(separator.join(['# columns: time' if comment_column_names else 'time'] + data_keys) + '\n')
-            for line in to_save:
-                out.write(line)
-                out.write('\n')
+            out.write(header_lines)
+
+            for line in value_lines:
+                out.write(line + '\n')
 
     except IOError as exc:
         LOG.exception('Problem with saving timeseries to file', exc)

@@ -2,11 +2,10 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import codecs
 import os
 
 from nose.tools import assert_list_equal, assert_equal, assert_raises
-from mock import patch
+from mock import patch, mock_open, call
 from utilities import mk_datetime
 from data_utils import save_timeseries, templated_filename, map_chars, select_stations, load_stations
 import data_utils
@@ -27,69 +26,96 @@ data2 = dict(
 
 
 def test_save_timeseries__simple():
-    save_timeseries(ts, data, test_path)
-    with open(test_path) as f:
-        lines = f.readlines()
-    assert_list_equal([
-        'time, wind_dir\n',
-        '2014-02-01T10:00, 2.4545\n',
-        '2014-02-01T11:00, 2.5000\n'
-    ], lines)
+    m = mock_open()
+    with patch('data_utils.codecs.open', m):
+        data_utils.save_timeseries(ts, data, test_path)
+
+    calls = [
+        call('time, wind_dir\n'),
+        call('2014-02-01T10:00, 2.4545\n'),
+        call('2014-02-01T11:00, 2.5000\n')
+    ]
+    handle = m()
+    handle.write.assert_has_calls(calls)
+    assert_equal(handle.write.call_count, len(calls))
 
 
 def test_save_timeseries__header():
-    save_timeseries(ts, data, test_path, {'this_is_header': 'HEADER'})
-    with open(test_path) as f:
-        lines = f.readlines()
-    assert_list_equal([
-        '# this_is_header: HEADER\n',
-        'time, wind_dir\n',
-        '2014-02-01T10:00, 2.4545\n',
-        '2014-02-01T11:00, 2.5000\n'
-    ], lines)
+    m = mock_open()
+    with patch('data_utils.codecs.open', m):
+        data_utils.save_timeseries(ts, data, test_path, {'this_is_header': 'HEADER'})
+
+    calls = [
+        call('# this_is_header: HEADER\ntime, wind_dir\n'),
+        call('2014-02-01T10:00, 2.4545\n'),
+        call('2014-02-01T11:00, 2.5000\n')
+    ]
+    handle = m()
+    handle.write.assert_has_calls(calls)
+    assert_equal(handle.write.call_count, len(calls))
 
 
 def test_save_timeseries__formating():
-    save_timeseries(ts, data, test_path, separator='::', valueformat='{:.2f}')
-    with open(test_path) as f:
-        lines = f.readlines()
-    assert_list_equal([u'time::wind_dir\n', '2014-02-01T10:00::2.45\n', '2014-02-01T11:00::2.50\n'], lines)
+    m = mock_open()
+    with patch('data_utils.codecs.open', m):
+        data_utils.save_timeseries(ts, data, test_path, separator='::', valueformat='{:.2f}')
+
+    calls = [
+        call('time::wind_dir\n'),
+        call('2014-02-01T10:00::2.45\n'),
+        call('2014-02-01T11:00::2.50\n')
+    ]
+    handle = m()
+    handle.write.assert_has_calls(calls)
+    assert_equal(handle.write.call_count, len(calls))
 
 
 def test_save_timeseries__simple2():
-    save_timeseries(ts2, data2, test_path)
-    with open(test_path) as f:
-        lines = f.readlines()
-    assert_list_equal([
-        'time, temp, wind_dir\n',
-        '2014-02-01T10:00, 10.6162, 2.4545\n',
-        '2014-02-01T11:00, -9999, 2.5000\n',
-        '2014-02-01T12:00, 10.2000, -9999\n'
-    ], lines)
+    m = mock_open()
+    with patch('data_utils.codecs.open', m):
+        data_utils.save_timeseries(ts2, data2, test_path)
+
+    calls = [
+        call('time, temp, wind_dir\n'),
+        call('2014-02-01T10:00, 10.6162, 2.4545\n'),
+        call('2014-02-01T11:00, -9999, 2.5000\n'),
+        call('2014-02-01T12:00, 10.2000, -9999\n')
+    ]
+    handle = m()
+    handle.write.assert_has_calls(calls)
+    assert_equal(handle.write.call_count, len(calls))
 
 
 def test_save_timeseries__utf8():
-    save_timeseries(ts, data, test_path, {'name': 'Ólafsfjarðarmúli'})
-    with codecs.open(test_path, encoding='UTF8') as f:
-        lines = f.readlines()
-    assert_list_equal([
-        '# name: Ólafsfjarðarmúli\n',
-        'time, wind_dir\n',
-        '2014-02-01T10:00, 2.4545\n',
-        '2014-02-01T11:00, 2.5000\n'
-    ], lines)
+    m = mock_open()
+    with patch('data_utils.codecs.open', m):
+        data_utils.save_timeseries(ts, data, test_path, {'name': 'Ólafsfjarðarmúli'})
+
+    calls = [
+        call('# name: Ólafsfjarðarmúli\ntime, wind_dir\n'),
+        call('2014-02-01T10:00, 2.4545\n'),
+        call('2014-02-01T11:00, 2.5000\n')
+    ]
+
+    handle = m()
+    handle.write.assert_has_calls(calls)
+    assert_equal(handle.write.call_count, len(calls))
 
 
 def test_save_timeseries__header__not_comment_column_names():
-    save_timeseries(ts, data, test_path, {'name': 'Ólafsfjarðarmúli'}, comment_column_names=False)
-    with codecs.open(test_path, encoding='UTF8') as f:
-        lines = f.readlines()
-    assert_list_equal([
-        '# name: Ólafsfjarðarmúli\n',
-        'time, wind_dir\n',
-        '2014-02-01T10:00, 2.4545\n',
-        '2014-02-01T11:00, 2.5000\n'
-    ], lines)
+    m = mock_open()
+    with patch('data_utils.codecs.open', m):
+        data_utils.save_timeseries(ts, data, test_path, {'name': 'Ólafsfjarðarmúli'}, comment_column_names=True)
+
+    calls = [
+        call('# name: Ólafsfjarðarmúli\n# columns: time, wind_dir\n'),
+        call('2014-02-01T10:00, 2.4545\n'),
+        call('2014-02-01T11:00, 2.5000\n')
+    ]
+
+    handle = m()
+    handle.write.assert_has_calls(calls)
+    assert_equal(handle.write.call_count, len(calls))
 
 
 def test_save_timeseries__error():

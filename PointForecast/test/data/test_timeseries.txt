@@ -1,4 +1,0 @@
-# name: Ólafsfjarðarmúli
-time, wind_dir
-2014-02-01T10:00, 2.4545
-2014-02-01T11:00, 2.5000
