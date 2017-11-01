@@ -35,9 +35,7 @@ def test_save_timeseries__simple():
         call('2014-02-01T10:00, 2.4545\n'),
         call('2014-02-01T11:00, 2.5000\n')
     ]
-    handle = m()
-    handle.write.assert_has_calls(calls)
-    assert_equal(handle.write.call_count, len(calls))
+    assert_list_equal(m().write.call_args_list, calls)
 
 
 def test_save_timeseries__header():
@@ -50,9 +48,7 @@ def test_save_timeseries__header():
         call('2014-02-01T10:00, 2.4545\n'),
         call('2014-02-01T11:00, 2.5000\n')
     ]
-    handle = m()
-    handle.write.assert_has_calls(calls)
-    assert_equal(handle.write.call_count, len(calls))
+    assert_list_equal(m().write.call_args_list, calls)
 
 
 def test_save_timeseries__formating():
@@ -65,9 +61,7 @@ def test_save_timeseries__formating():
         call('2014-02-01T10:00::2.45\n'),
         call('2014-02-01T11:00::2.50\n')
     ]
-    handle = m()
-    handle.write.assert_has_calls(calls)
-    assert_equal(handle.write.call_count, len(calls))
+    assert_list_equal(m().write.call_args_list, calls)
 
 
 def test_save_timeseries__simple2():
@@ -81,9 +75,7 @@ def test_save_timeseries__simple2():
         call('2014-02-01T11:00, -9999, 2.5000\n'),
         call('2014-02-01T12:00, 10.2000, -9999\n')
     ]
-    handle = m()
-    handle.write.assert_has_calls(calls)
-    assert_equal(handle.write.call_count, len(calls))
+    assert_list_equal(m().write.call_args_list, calls)
 
 
 def test_save_timeseries__utf8():
@@ -97,9 +89,7 @@ def test_save_timeseries__utf8():
         call('2014-02-01T11:00, 2.5000\n')
     ]
 
-    handle = m()
-    handle.write.assert_has_calls(calls)
-    assert_equal(handle.write.call_count, len(calls))
+    assert_list_equal(m().write.call_args_list, calls)
 
 
 def test_save_timeseries__header__not_comment_column_names():
@@ -113,9 +103,7 @@ def test_save_timeseries__header__not_comment_column_names():
         call('2014-02-01T11:00, 2.5000\n')
     ]
 
-    handle = m()
-    handle.write.assert_has_calls(calls)
-    assert_equal(handle.write.call_count, len(calls))
+    assert_list_equal(m().write.call_args_list, calls)
 
 
 def test_save_timeseries__error():
