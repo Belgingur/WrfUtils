@@ -52,15 +52,14 @@ def save_timeseries(timestamps, data, filepath, metadata=OrderedDict(), separato
         raise
 
 
-def templated_filename(config, create_dirs=True, ext='csv', **kwargs):
+def templated_filename(config, create_dirs=True, ext='csv', char_mapping=None, **kwargs):
 
     """ Create filename for the output based on template. """
 
     out_dir = config.get('store_dir', '')
     template = config.get('output_template', 'pf-{ref}-{analysis_date:%Y-%m-%d_%H:%M:%S}.' + ext)
     try:
-        path = os.path.join(out_dir, template.format(**kwargs))
-        # path = os.path.join(out_dir, map_chars(str(template).format(**kwargs), char_mapping))
+        path = os.path.join(out_dir, map_chars(template.format(**kwargs), char_mapping))
     except KeyError as e:
         LOG.error('The following keys in the template %s are not provided: %s', template, e)
         raise
@@ -101,8 +100,8 @@ def map_chars(text, char_map):
         text = text.replace(non_asc, asc)
 
     try:
-        text.decode('ascii')
-    except (UnicodeDecodeError, UnicodeEncodeError):
+        text.encode('ascii')
+    except UnicodeEncodeError:
         LOG.warning('Not all non-ascii characters have been removed from the string `%s`. Is your character map complete?', text)
     return text
 
