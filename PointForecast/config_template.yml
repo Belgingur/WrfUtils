@@ -9,3 +9,17 @@ spinup: 3
 #stations:
 #  - {lat: 51.1052, lon: 17.0889, name: Wrocław, ref: wroclaw.uwr}
 #  - {lat: 50.865, lon: 16.708, name: Ślęża, ref: wroclaw.sleza}
+
+
+# On choosing stations (from point_forecast.select_stations documentation)
+
+#    Each entry (single or within a list) can have wildcards for regexp-like matching.
+#
+#    Rules for wildcard/regexp matching:
+#     - % is interpreted as 'match any 0 or more characters' (like in sql)
+#     - dots (.) are interpreted as dots
+#     - other rules (number matching e.g. [1-9][0-9]* etc.) are interpreted as in regexp
+#
+#    Example:
+#     'lv.is.%' will match all stations from Landsvirkjun/IS
+#     'lv.(is|fo).5' will match station 5 from both lv.is and lv.fo

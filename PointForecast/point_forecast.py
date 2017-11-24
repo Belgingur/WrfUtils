@@ -1,13 +1,10 @@
 #!/usr/bin/env python
-# encoding: utf-8
 
 """
 
 Generate a point forecast using wrfout file and station information file and save it to disk.
 Use bilinear interpolation to create weights.
 """
-
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 import argparse
 import logging
@@ -51,7 +48,7 @@ def calculate_pf(data, weights, constant=0, circular=False):
 
     """ Apply weights to data taken from a WRF out file and return a timeseries of point forecasts """
 
-    keys = weights.keys()
+    keys = list(weights.keys())
     weights_order = [weights[k] for k in keys]
 
     pf_series = []

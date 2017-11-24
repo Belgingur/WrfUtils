@@ -1,11 +1,7 @@
-# encoding: utf-8
-
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import os
 
-from nose.tools import assert_list_equal, assert_equal, assert_raises
-from mock import patch, mock_open, call
+from nose.tools import assert_list_equal, assert_equal, assert_raises, assert_dict_equal
+from unittest.mock import patch, mock_open, call
 from utilities import mk_datetime
 from data_utils import save_timeseries, templated_filename, map_chars, select_stations, load_stations
 import data_utils
@@ -212,4 +208,6 @@ def test_load_point_metadata__meta_file():
 
     with patch('data_utils.read_all_stations', return_value=meta_stations):
         actual = data_utils.load_stations(config)
-    assert_list_equal(expected, sorted(actual))
+
+    assert_equal(len(expected), len(actual))
+    assert_list_equal (expected, sorted(actual, key=lambda d: d['ref']))

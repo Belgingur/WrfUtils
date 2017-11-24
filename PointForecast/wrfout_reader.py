@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import logging
 from datetime import datetime, timedelta
 
@@ -30,7 +28,7 @@ class WRFReader(object):
 
         self.start_date = parse_wrf_date(nc_data.START_DATE)
 
-        times = [parse_wrf_date(rt.tostring()) for rt in nc_data.variables['Times']]
+        times = [parse_wrf_date(rt.tostring().decode()) for rt in nc_data.variables['Times']]
         time_step = timedelta(seconds=round((times[-1] - times[0]).total_seconds() / (len(times) - 1)))
         self.interval_hours = time_step.total_seconds() / 3600.0
 

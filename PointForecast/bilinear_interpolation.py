@@ -1,13 +1,10 @@
 #!/usr/bin/env python
-# encoding: utf-8
 
 """
 
 Functions to perform bilinear interpolation based only on the station lon/lat and wrfout file.
 
 """
-
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 import math
 import logging
@@ -69,7 +66,7 @@ def globe_distance_deg(lat1, lon1, lat2, lon2):
 
     """ Distance between two points [deg lat/lon]. The distance has the same units as the radius, m by default. """
 
-    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    lat1, lon1, lat2, lon2 = list(map(math.radians, [lat1, lon1, lat2, lon2]))
 
     d_lat = (lat2 - lat1) / 2
     d_lon = (lon2 - lon1) / 2

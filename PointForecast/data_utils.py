@@ -4,8 +4,6 @@ Common methods for operations with timeseries
 
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import codecs
 import os
 import logging
@@ -28,9 +26,9 @@ def save_timeseries(timestamps, data, filepath, metadata=OrderedDict(), separato
     """ Save the timeseries with additional metadata in front. """
 
     LOG.info('Saving timeseries to %s', filepath)
-    headers = ['# {}: {}'.format(k, v) for k, v in metadata.iteritems()]
+    headers = ['# {}: {}'.format(k, v) for k, v in metadata.items()]
 
-    data_keys = sorted(data.keys(), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
+    data_keys = sorted(list(data.keys()), key=lambda x: COMPONENTS_ORDER.get(x, 1000))
     timestamps.sort()
 
     value_lines = []
@@ -54,14 +52,15 @@ def save_timeseries(timestamps, data, filepath, metadata=OrderedDict(), separato
         raise
 
 
-def templated_filename(config, create_dirs=True, ext='csv', char_mapping=None, **kwargs):
+def templated_filename(config, create_dirs=True, ext='csv', **kwargs):
 
     """ Create filename for the output based on template. """
 
     out_dir = config.get('store_dir', '')
     template = config.get('output_template', 'pf-{ref}-{analysis_date:%Y-%m-%d_%H:%M:%S}.' + ext)
     try:
-        path = os.path.join(out_dir, map_chars(unicode(template).format(**kwargs), char_mapping))
+        path = os.path.join(out_dir, template.format(**kwargs))
+        # path = os.path.join(out_dir, map_chars(str(template).format(**kwargs), char_mapping))
     except KeyError as e:
         LOG.error('The following keys in the template %s are not provided: %s', template, e)
         raise
@@ -72,10 +71,33 @@ def templated_filename(config, create_dirs=True, ext='csv', char_mapping=None, *
     return path
 
 
+def load_yaml(path):
+    try:
+        with codecs.open(path, encoding='utf-8') as yml_file:
+            data = yaml.safe_load(yml_file)
+        return data
+
+    except (IOError, KeyError, ValueError, yaml.scanner.ScannerError) as exc:
+        LOG.error('Problem with reading from file. Does the file exist? Is it in the correct format?')
+        LOG.exception(exc)
+        raise
+
+
+def possibly_load_char_map(conf):
+    lang_file = conf.get('char_map', '')
+    if 'ascii' not in conf or not conf['ascii']:
+        return None
+
+    path = os.path.join(lang_file, conf.get('ascii_char_map', 'char_map_IS.yml'))
+    LOG.info('UTF to ASCII character map will be loaded from `%s`.', path)
+
+    return load_yaml(path)
+
+
 def map_chars(text, char_map):
     if char_map is None:
         return text
-    for non_asc, asc in char_map.iteritems():
+    for non_asc, asc in char_map.items():
         text = text.replace(non_asc, asc)
 
     try:
@@ -136,7 +158,7 @@ def select_stations(target, source):
 
     data = {s['ref']: s for s in source}
 
-    all_keys = [k for k, v in data.iteritems()]
+    all_keys = [k for k, v in data.items()]
 
     if not type(target) == list:
         target = [target]

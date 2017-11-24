@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 from nose.tools import assert_almost_equal, assert_equal, assert_list_equal
 
 from bilinear_interpolation import distance_to_side, generate_weights_bilinear
