@@ -45,7 +45,7 @@ class WRFReader(object):
 
     def get_variable(self, variable, spinup=0):
 
-        LOG.info("Getting variable %s", variable)
+        LOG.debug("Getting variable %s", variable)
 
         if variable in self.vars:
             return self.vars[variable][:][spinup:]

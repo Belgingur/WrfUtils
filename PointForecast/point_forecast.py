@@ -119,7 +119,7 @@ def parse_args():
                         help='Config file for logging. Defaults to logging.yml in code folder')
 
     parser.add_argument('--analysis', type=parse_iso_date, required=True,
-                        help='Analysis date for the forecast. Required')  # TODO not required? this is only an output
+                        help='Analysis date for the forecast. Required')
     parser.add_argument('--components', nargs='+', required=True,
                         help='One or more meteorological variables to produce point forecast (use temp, wind_speed, '
                              'wind_dir, prec_rate, snow_ratio, pressure, mslp, humidity, rel_hum, total_clouds '
@@ -127,7 +127,7 @@ def parse_args():
     parser.add_argument('--wrfout', required=True, help='Grid forecast file to use for point forecast generation.')
     parser.add_argument('--wrfout-long-term', help='Additional wrfout can be added with lower resolution and '
                                                    'times ranging farther than the basic wrfout.')
-    parser.add_argument('--margin', type=int, default=0,  # TODO this could be in config
+    parser.add_argument('--margin', type=int, default=10,
                         help='When using on-demand bilinear interpolation, describes the number of cells '
                              'from the border of the domain that we want to discard from processing')
     parser.add_argument('--nearest-neighbour', action='store_true', default=False,
