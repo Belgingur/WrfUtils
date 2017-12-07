@@ -223,10 +223,14 @@ try:
     files = [f for f in sorted(os.listdir(path_grib)) if fnmatch.fnmatch(f, '*.grb2') \
                                                                         or fnmatch.fnmatch(f, '*.grib2')]
 except:
-    files = path_grib.split("/")[-1]
+    files = [path_grib]
+
 nc_file = 'Null'
 for t, file in enumerate(files,0):
-    gribfile = pygrib.open(path_grib+file)
+    try:
+        gribfile = pygrib.open(path_grib+file)
+    except:
+        gribfile = pygrib.open(file)
     suc, nc_file = _push_GRIB_NC(gribfile, file, nc_file, t)
     if suc != True:
         print('Error open %s' %file)
