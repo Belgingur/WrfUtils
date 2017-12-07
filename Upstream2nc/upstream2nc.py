@@ -75,7 +75,7 @@ def _push_GRIB_NC(gribfile, grib_fn, nc_file,t=0):
 
     """
     d0 = _get_GRIB_DATE(gribfile[1])
-    timestep, nc_file = NC_is_new(d0, grib_fn, nc_file)
+    timestep, nc_file, t = NC_is_new(d0, grib_fn, nc_file)
     for i, grib in enumerate(gribfile,0):
         var = grib.cfVarName
         if var == 'unknown':
@@ -121,20 +121,22 @@ def NC_is_new(date_anl, grib_fn, nc_file):
         print("Unknown filename format, %s" %(grib_fn))
         exit(1)
     if os.path.isfile(nc_fn):
+        t = 1
         try:
             nc_file = nc_file
             timestep = len(nc_file.variable['times'])
         except:
             try:
-                nc_file = Dataset(nc_fn, 'w')
+                nc_file = Dataset(nc_fn, 'r+')
                 timestep = len(nc_file.variable['times'])
             except:
                 timestep = 0
     else:
+        t = 0
         nc_file = Dataset(nc_fn, 'w')
         timestep = 0
 
-    return(timestep, nc_file)
+    return(timestep, nc_file, t)
 
 def CREATE_NC_DIMENSION(nc_file, shape, size=0):
     """
