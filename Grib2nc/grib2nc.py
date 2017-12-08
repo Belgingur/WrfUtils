@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-#-*- coding:utf-8 -*-
+#!/usr/bin/env python3
 
 from netCDF4 import Dataset
 import pygrib
@@ -240,4 +239,4 @@ for t, file in enumerate(files,0):
     else:
         print('File %i (%s) of %i done' % (int(t+1), file, int(len(files))))
 
-    nc_file.close
+    nc_file.close()
