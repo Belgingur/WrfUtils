@@ -236,7 +236,7 @@ def append_NC(nc_file, _var, grib, comp_lvl=6):
 #######################################
 parser = argparse.ArgumentParser()
 parser.add_argument('GRIB_PATH', help="Path to a single file or folder.", action='store')
-parser.add_argument('OUTPUT_PATH', help="destinations path for nc file.", action='store')
+parser.add_argument('OUTPUT_PATH', help="Output path for nc file.", action='store')
 args=parser.parse_args()
 
 path_grib = args.GRIB_PATH
