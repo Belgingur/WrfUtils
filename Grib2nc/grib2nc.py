@@ -7,10 +7,11 @@ import sys
 import fnmatch
 import numpy as np
 import datetime
+import argparse
 
 
 def _get_GRIB_VARS(var):
-   DIC = {
+    DIC = {
 'latitude'                              : ['XLAT',      'u3', 0.00001   , 'sfc' ],
 'longitude'                             : ['XLONG',     'u3', 0.00001   , 'sfc' ],
 'spfh2m'                                : ['Q2',        'i4', 0.00000001, 'sfc' ],
@@ -233,8 +234,13 @@ def append_NC(nc_file, _var, grib, comp_lvl=6):
         return False
 
 #######################################
-path_grib = (sys.argv[1])  # upstream grib2 folder
-path_out = (sys.argv[2])  # output file full path
+parser = argparse.ArgumentParser()
+parser.add_argument('GRIB_PATH', help="Path to a single file or folder.", action='store')
+parser.add_argument('OUTPUT_PATH', help="destinations path for nc file.", action='store')
+args=parser.parse_args()
+
+path_grib = args.GRIB_PATH
+path_out = args.OUTPUT_PATH
 
 try:
     files = [f for f in sorted(os.listdir(path_grib)) if fnmatch.fnmatch(f, '*.grb2')
