@@ -142,7 +142,7 @@ def test_pick_chunk_sizes(dimension_sizes, max_k, chunk_sizes):
     in_ds = MagicMock(name='in_ds')  # type: Dataset
     dimensions = []
     for dim_name, dim_size in dimension_sizes.items():
-        print('size of {} is {}', dim_name, dim_size)
+        print('size of {} is {}'.format(dim_name, dim_size))
         dimensions.append(dim_name)
         in_ds.dimensions[dim_name].size = dim_size
     dimension_sizes = pick_chunk_sizes(in_ds, dimensions, max_k)
