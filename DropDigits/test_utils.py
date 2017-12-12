@@ -4,8 +4,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, call
 
 import numpy as np
+import pytest
+from netCDF4 import Dataset
 
-from utils import read_wrf_dates, destagger_array
+from utils import read_wrf_dates, destagger_array, pick_chunk_sizes
 from utils_testing import mock_dataset_meta, slice_call
 
 LOG = logging.getLogger(__name__)
@@ -41,6 +43,7 @@ def test_work_wrf_dates():
         assert isinstance(d, datetime)
     for d1, d2 in zip(dates[:-1], dates[1:]):
         assert d1 < d2
+
 
 def test_mock_dataset_africa():
     dsa = mock_dataset_meta(WRFOUT_AFRICA_DUMP)
@@ -126,3 +129,27 @@ def test_slices_call():
         5,
         slice(2, None, 4)
     ))
+
+
+@pytest.mark.parametrize(
+    'dimension_sizes,max_k,chunk_sizes', [
+        (dict(Time=240, west_east=50, south_north=50), 42, (50, 16, 16)),
+        (dict(Time=120, west_east=40, south_north=40), None, (40, 16, 16)),
+        (dict(Time=240, west_east=50, south_north=50, bottom_top=20), 10, (20, 10, 16, 10)),
+        (dict(Time=120, west_east=40, south_north=40, bottom_top=20), None, (20, 10, 16, 16)),
+    ])
+def test_pick_chunk_sizes(dimension_sizes, max_k, chunk_sizes):
+    in_ds = MagicMock(name='in_ds')  # type: Dataset
+    dimensions = []
+    for dim_name, dim_size in dimension_sizes.items():
+        print('size of {} is {}'.format(dim_name, dim_size))
+        dimensions.append(dim_name)
+        in_ds.dimensions[dim_name].size = dim_size
+    dimension_sizes = pick_chunk_sizes(in_ds, dimensions, max_k)
+    assert dimension_sizes == chunk_sizes
+
+
+def test_pick_chunk_sizes__too_many_dimensions():
+    ds = MagicMock(name='in_ds')  # type: Dataset
+    with pytest.raises(IndexError):
+        pick_chunk_sizes(ds, ['foo', 'bar', 'baz', 'frodo', 'bilbo'])

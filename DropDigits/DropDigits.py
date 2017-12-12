@@ -128,7 +128,7 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
     return in_vars
 
 
-def create_output_variables(out_ds: Dataset, in_vars: List[Variable], overrides: Dict[str, Override],
+def create_output_variables(in_ds:Dataset, out_ds: Dataset, in_vars: List[Variable], overrides: Dict[str, Override],
                             comp_level: int, chunking: bool, max_k: int = None) -> List[Variable]:
     LOG.info('Create output variables with overrides:')
     out_vars = []
@@ -139,7 +139,7 @@ def create_output_variables(out_ds: Dataset, in_vars: List[Variable], overrides:
         LOG.info('    %- 10s %- 10s %s..%s', var_name, override, override.range_min, override.range_max)
 
         data_type = value_with_override('datatype', override, in_var)
-        chunk_sizes = pick_chunk_sizes(in_var.dimensions, max_k) if chunking else None
+        chunk_sizes = pick_chunk_sizes(in_ds, in_var.dimensions, max_k) if chunking else None
         out_var = out_ds.createVariable(in_var.name,
                                         data_type,
                                         dimensions=in_var.dimensions,
@@ -299,7 +299,7 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
     create_output_dimensions(in_ds, in_vars, out_ds, margin, max_k)
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
-    out_vars = create_output_variables(out_ds, in_vars, overrides, comp_level, chunking, max_k)
+    out_vars = create_output_variables(in_ds, out_ds, in_vars, overrides, comp_level, chunking, max_k)
 
     LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
     for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):

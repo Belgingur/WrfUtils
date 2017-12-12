@@ -55,7 +55,7 @@ exclude: []
 # The default key decides how we handle variables with no specific overrides
 overrides:
 
-  # Valid datatype specifiers include:
+  # Valid data-type specifiers include:
   #   'u1' ( 8-bit unsigned integer)  0 .. 255
   #   'u2' (16-bit unsigned integer)  0 .. 65535
   #   'u4' (32-bit unsigned integer)  0 .. 4.295e9
@@ -113,7 +113,7 @@ overrides:
   TSLB         : { 'datatype':'u2', 'scale_factor':0.01          } #        253.662 .. 322.814
   SMOIS        : { 'datatype':'u2', 'scale_factor':0.0001        } #           0.02 .. 1.0
   GRDFLX       : { 'datatype':'i2', 'scale_factor':0.1           } #       -346.537 .. 219.888
-  ACSNOM       : { 'datatype':'u2', 'scale_factor':0.01          } #            0.0 .. 310.071
+  ACSNOM       : { 'datatype':'u2', 'scale_factor':0.1           } #            0.0 .. 310.071
   SNOW         : { 'datatype':'u4', 'scale_factor':0.1           } #
   SNOWH        : { 'datatype':'u2', 'scale_factor':0.001         } #            0.0 .. 18.4321
   TKE_PBL      : { 'datatype':'u2', 'scale_factor':0.01          } #            0.0 .. 41.7699
@@ -149,7 +149,7 @@ overrides:
   F_ICE_PHY    : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 1.0
   F_RAIN_PHY   : { 'datatype':'u2', 'scale_factor':0.0001        } #            0.0 .. 1.0
   F_RIMEF_PHY  : { 'datatype':'u2', 'scale_factor':0.001         } #            1.0 .. 45.2593
-  P_TOP        : { 'datatype':'u2', 'scale_factor':0.1           } #         5000.0 .. 5000.0
+  P_TOP        : { 'datatype':'u2', 'scale_factor':1             } #         5000.0 .. 5000.0
   QNICE        : { 'datatype':'i4', 'scale_factor':0.01          } #
   QNSNOW       : { 'datatype':'i4', 'scale_factor':0.01          } #
   QNRAIN       : { 'datatype':'i4', 'scale_factor':0.01          } #

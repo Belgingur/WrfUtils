@@ -72,7 +72,7 @@ def memoize(f):
     return helper
 
 
-def pick_chunk_sizes(in_ds, dimensions: List[str], max_k: int = None) -> Tuple[int]:
+def pick_chunk_sizes(in_ds: Dataset, dimensions: List[str], max_k: int = None) -> Tuple[int, ...]:
     """
     Given a variable, pick the appropriate chunk sizes to apply to it given it's shape
     """
@@ -82,10 +82,12 @@ def pick_chunk_sizes(in_ds, dimensions: List[str], max_k: int = None) -> Tuple[i
             dim = in_ds.dimensions[dim_name]  # type: Dimension
             if dim.size is not None:
                 cs = min(dim.size, cs)
-            if dim_name in (DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG):
+            if dim_name in (DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG) and max_k is not None:
                 cs = min(cs, max_k)
             yield cs
 
+    if len(dimensions) > len(CHUNK_SIZES):
+        raise IndexError('We can only deal with variables or {} dimensions or less', len(CHUNK_SIZES))
     unadjusted = CHUNK_SIZES[len(dimensions) - 1]
     return tuple(adjust_sizes(unadjusted))
 
