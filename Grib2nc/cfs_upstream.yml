@@ -1,0 +1,65 @@
+
+#######################################
+# Configuration file for grib2nc
+#######################################
+
+## Variables present in upstream cfs(flux and pressure) file
+t:
+- T
+- u2
+- 0.01
+- ver
+t2m:
+- T2
+- u2
+- 0.01
+- sfc
+u:
+- U
+- i2
+- 0.01
+- ver
+u10:
+- U10
+- u2
+- 0.01
+- sfc
+v:
+- V
+- i2
+- 0.01
+- ver
+v10:
+- V10
+- u2
+- 0.01
+- sfc
+pres:
+- P
+- i2
+- 0.01
+- ver
+sp:
+- PSFC
+- u4
+- 0.01
+- sfc
+r2:
+- RH2
+- u2
+- 0.01
+- sfc
+gh:
+- GHT
+- i2
+- 10
+- ver
+
+##File name format
+file_name:
+    '{name}:{date}:{member}:{type}:{analdate}'
+
+  
+##Timestep
+time_step:
+  6

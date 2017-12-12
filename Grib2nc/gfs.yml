@@ -1,0 +1,159 @@
+#######################################
+# Configuration file for grib2nc
+#######################################
+
+## Variables present in full gfs file
+Downward long-wave radiation flux:
+- GLW
+- u2
+- 0.01
+- sfc
+Downward short-wave radiation flux:
+- SWDOWN
+- u2
+- 0.01
+- sfc
+acpcp:
+- RAINC
+- u2
+- 0.01
+- sfc
+apcp:
+- RAINNC
+- u2
+- 0.01
+- sfc
+cpofp:
+- SR
+- u1
+- 0.01
+- sfc
+csnow:
+- SNOWC
+- u1
+- 0.01
+- sfc
+cwatclm:
+- QCLOUD
+- i4
+- 1.0e-06
+- sfc
+gfluxsfc:
+- GRDFLX
+- i2
+- 0.1
+- sfc
+gh:
+- GHT
+- i2
+- 10
+- ver
+gust:
+- GUST
+- u2
+- 0.01
+- sfc
+hpbl:
+- PBLH
+- u4
+- 0.1
+- sfc
+latitude:
+- XLAT
+- u3
+- 1.0e-05
+- sfc
+longitude:
+- XLONG
+- u3
+- 1.0e-05
+- sfc
+msletmsl:
+- MSLP
+- u4
+- 0.01
+- sfc
+pres:
+- P
+- i2
+- 0.01
+- sfc
+q:
+- Q
+- i2
+- 1.0e-08
+- ver
+r2:
+- RH2
+- u2
+- 0.01
+- sfc
+sde:
+- SNOWH
+- u2
+- 0.001
+- sfc
+sdwe:
+- SNOW
+- u4
+- 0.1
+- sfc
+sm:
+- SMOISu2
+- 0.0001
+- sfc
+snod:
+- SNOWNC
+- u4
+- 0.01
+- sfc
+sp:
+- PSFC
+- u4
+- 0.01
+- sfc
+spfh2m:
+- Q2
+- i4
+- 1.0e-08
+- sfc
+st:
+- TSLB
+- u2
+- 0.01
+- sfc
+t:
+- T
+- u2
+- 0.01
+- ver
+t2m:
+- T2
+- u2
+- 0.01
+- sfc
+u:
+- U
+- i2
+- 0.01
+- sfc
+u10:
+- U10
+- u2
+- 0.01
+- sfc
+v:
+- V
+- i2
+- 0.01
+- sfc
+v10:
+- V10
+- u2
+- 0.01
+- sfc
+w:
+- W
+- i2
+- 0.01
+- sfc

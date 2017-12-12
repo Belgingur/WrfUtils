@@ -8,44 +8,7 @@ import fnmatch
 import numpy as np
 import datetime
 import argparse
-
-
-def _get_GRIB_VARS(var):
-    DIC = {
-'latitude'                              : ['XLAT',      'u3', 0.00001   , 'sfc' ],
-'longitude'                             : ['XLONG',     'u3', 0.00001   , 'sfc' ],
-'spfh2m'                                : ['Q2',        'i4', 0.00000001, 'sfc' ],
-'q'                                     : ['Q',         'i2', 0.00000001, 'ver' ],
-'t2m'                                   : ['T2',        'u2', 0.01      , 'sfc' ],
-'t'                                     : ['T',         'u2', 0.01      , 'ver' ],
-'sp'                                    : ['PSFC',      'u4', 0.01      , 'sfc' ],
-'pres'                                  : ['P',         'i2', 0.01      , 'sfc' ],
-'u10'                                   : ['U10',       'u2', 0.01      , 'sfc' ],
-'v10'                                   : ['V10',       'u2', 0.01      , 'sfc' ],
-'u'                                     : ['U',         'i2', 0.01      , 'sfc' ],
-'v'                                     : ['V',         'i2', 0.01      , 'sfc' ],
-'w'                                     : ['W',         'i2', 0.01      , 'sfc' ],
-'r2'                                    : ['RH2',       'u2', 0.01      , 'sfc' ],
-'msletmsl'                              : ['MSLP',      'u4', 0.01      , 'sfc' ],
-'cwatclm'                               : ['QCLOUD',    'i4', 0.000001  , 'sfc' ],
-'st'                                    : ['TSLB',      'u2', 0.01      , 'sfc' ],
-'sm'                                    : ['SMOIS'      'u2', 0.0001    , 'sfc' ],
-'gfluxsfc'                              : ['GRDFLX',    'i2', 0.1       , 'sfc' ],
-'sdwe'                                  : ['SNOW',      'u4', 0.1       , 'sfc' ],
-'sde'                                   : ['SNOWH',     'u2', 0.001     , 'sfc' ],
-'gh'                                    : ['GHT',       'i2', 10        , 'ver' ],
-'snod'                                  : ['SNOWNC',    'u4', 0.01      , 'sfc' ],
-'acpcp'                                 : ['RAINC',     'u2', 0.01      , 'sfc' ],
-'apcp'                                  : ['RAINNC',    'u2', 0.01      , 'sfc' ],
-'Downward short-wave radiation flux'    : ['SWDOWN',    'u2', 0.01      , 'sfc' ],
-'Downward long-wave radiation flux'     : ['GLW',       'u2', 0.01      , 'sfc' ],
-'hpbl'                                  : ['PBLH',      'u4', 0.1       , 'sfc' ],
-'csnow'                                 : ['SNOWC',     'u1', 0.01      , 'sfc' ],
-'cpofp'                                 : ['SR',        'u1', 0.01      , 'sfc' ],
-'gust'                                  : ['GUST',      'u2', 0.01      , 'sfc' ]
-}
-    return DIC.get(var, ['Null', 'Null', 'Null', 'Null'])
-
+import yaml
 
 def _get_GRIB_date(grib):
     """
@@ -75,32 +38,32 @@ def _get_timestep(offset, step=3):
     return int(offset // step)
 
 
-def _push_GRIB_NC(gribfile, grib_fn, nc_file, t=0):
+def _push_GRIB_NC(gribfile, grib_fn, nc_file, yml,t=0):
     """
         Insert grib data into nc file
     """
     d0 = _get_GRIB_date(gribfile[1])
-    timestep, nc_file, t = NC_is_new(d0, grib_fn, nc_file)
+    timestep, nc_file, t = NC_is_new(d0, grib_fn, nc_file, yml['file_name'])
     for i, grib in enumerate(gribfile, 0):
         var = grib.cfVarName
         if var == 'unknown':
             var = grib.name
-        _var = _get_GRIB_VARS(var)
+        _var = yml.get(var, ['Null', 'Null', 'Null', 'Null'])
         if _var[0] != 'Null':
             if t == 0 and i == 0:
                 suc = create_NC(nc_file, grib)
                 if suc == True:
-                    suc = append_NC(nc_file, _var, grib)
+                    suc = append_NC(nc_file, _var, grib, yml['time_step'])
                 else:
                     try:
-                        suc = append_NC(nc_file, _var, grib)
+                        suc = append_NC(nc_file, _var, grib, yml['time_step'])
                     except:
                         string = grib_fn.split(".")[0] + ":" + d0.strftime('%Y-%m-%d_%H:%M') + ':' \
                             + grib_fn.split(".")[2] + '.nc'
                         print("Error creating dimensions on file: %s" % (string))
                         exit(1)
             else:
-                suc = append_NC(nc_file, _var, grib)
+                suc = append_NC(nc_file, _var, grib, yml['time_step'])
                 if suc == False:
                     string = grib_fn.split(":")[0] + ":" + d0.strftime('%Y-%m-%d_%H:%M') + ':' \
                         + grib_fn.split(":")[2] + '.nc'
@@ -113,16 +76,18 @@ def _push_GRIB_NC(gribfile, grib_fn, nc_file, t=0):
         return(False, 'Null')
 
 
-def NC_is_new(date_anl, grib_fn, nc_file):
+def NC_is_new(date_anl, grib_fn, nc_file, fn_config):
     """
         Verify if the nice file already exists or is a new one
     """
     try:
         partial_fn = grib_fn.split(":")
         nc_fn = partial_fn[
-            0] + ":" + date_anl.strftime('%Y-%m-%d_%H:%M') + ':' + partial_fn[2][:10] + '.nc'
+            fn_config.index('{name}')] + ":" + date_anl.strftime('%Y-%m-%d_%H:%M') + ':' + partial_fn[
+            fn_config.index('{member}')] + '.nc'
+
     except:
-        partial_fn = grib_fn.split(".")
+        partial_fn = grib_fn.split(":")
         nc_fn = partial_fn[
             0] + ":" + date_anl.strftime('%Y-%m-%d_%H:%M') + ':' + partial_fn[2][:10] + '.nc'
     else:
@@ -179,8 +144,7 @@ def create_NC(nc_file, grib, comp_lvl=6):
                                       least_significant_digit=3, complevel=int(comp_lvl))
         xlat = lat
         xlon = lon
-        times = nc_file.createVariable(
-            'times', 'S2', ('Time'), zlib=True, complevel=6)
+        times = nc_file.createVariable('times', 'S2', ('Time'), zlib=True, complevel=6)
         nc_file.sync()
         return True
 
@@ -188,12 +152,12 @@ def create_NC(nc_file, grib, comp_lvl=6):
         return False
 
 
-def append_NC(nc_file, _var, grib, comp_lvl=6):
+def append_NC(nc_file, _var, grib, step,comp_lvl=6):
     """
         This function append a new timstep to the nc file if it already exists, or create the variable
     """
     offset = _get_GRIB_offset(grib)
-    timestep = _get_timestep(offset)
+    timestep = _get_timestep(offset, step)
     d0 = _get_GRIB_date(grib)
     try:
         if _var[3] == 'sfc':
@@ -234,13 +198,18 @@ def append_NC(nc_file, _var, grib, comp_lvl=6):
         return False
 
 #######################################
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description="This script transform GRIB2 files in to NetCDF")
 parser.add_argument('GRIB_PATH', help="Path to a single file or folder.", action='store')
 parser.add_argument('OUTPUT_PATH', help="Output path for nc file.", action='store')
+parser.add_argument('-c', help="Configuration file(YAML) for especific model", action='store',required=True, dest='yml')
 args=parser.parse_args()
 
 path_grib = args.GRIB_PATH
 path_out = args.OUTPUT_PATH
+yml_file = args.yml
+
+with open(yml_file,'r') as yf:
+    config_yml = yaml.safe_load(yf)
 
 try:
     files = [f for f in sorted(os.listdir(path_grib)) if fnmatch.fnmatch(f, '*.grb2')
@@ -254,7 +223,7 @@ for t, file in enumerate(files, 0):
         gribfile = pygrib.open(path_grib + file)
     except:
         gribfile = pygrib.open(file)
-    suc, nc_file = _push_GRIB_NC(gribfile, file, nc_file, t)
+    suc, nc_file = _push_GRIB_NC(gribfile, file, nc_file, config_yml, t)
     if suc != True:
         print('Error open %s' % file)
         exit(1)

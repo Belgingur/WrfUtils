@@ -1,39 +1,47 @@
 name: grib2nc
 channels:
+- conda-forge
 - defaults
 dependencies:
-- basemap=1.0.7=np113py35_0
+- basemap=1.1.0=py35_3
+- ecmwf_grib=1.14.7=2
+- geos=3.6.2=1
+- jasper=1.900.1=4
+- libiconv=1.14=4
+- libnetcdf=4.5.0=3
+- libpng=1.6.28=2
+- netcdf4=1.3.1=py35_2
+- pygrib=2.0.2=py35_2
+- pyproj=1.9.5.1=py35_0
+- pyshp=1.2.12=py_0
 - ca-certificates=2017.08.26=h1d4fec5_0
 - certifi=2017.11.5=py35h9749603_0
 - curl=7.55.1=h78862de_4
 - cycler=0.10.0=py35hc4d5149_0
 - dbus=1.10.22=h3b5a359_0
 - expat=2.2.5=he0dffb1_0
-- fontconfig=2.12.4=h88586e7_1
-- freetype=2.8=hab7d2ae_1
-- geos=3.5.0=0
+- fontconfig=2.12.1=3
+- freetype=2.5.5=2
 - glib=2.53.6=h5d9569c_2
 - gst-plugins-base=1.12.2=he3457e5_0
 - gstreamer=1.12.2=h4f93127_0
 - hdf4=4.2.13=h3ca952b_2
 - hdf5=1.10.1=h9caa474_1
-- icu=58.2=h9c2bf20_1
+- icu=54.1=0
 - intel-openmp=2018.0.0=hc7b2577_8
 - jpeg=9b=h024ee3a_2
 - libedit=3.1=heed3624_0
 - libffi=3.2.1=hd88cf55_4
+- libgcc=7.2.0=h69d50b8_2
 - libgcc-ng=7.2.0=h7cc24e2_2
 - libgfortran-ng=7.2.0=h9f7466a_2
-- libnetcdf=4.4.1.1=h816af47_8
-- libpng=1.6.32=hbd3595f_4
 - libssh2=1.8.0=h2d05a93_3
 - libstdcxx-ng=7.2.0=h7a57d05_2
 - libxcb=1.12=hcd93eb1_4
-- libxml2=2.9.4=h2e8b1d7_6
-- matplotlib=2.1.0=py35h2cbf27e_0
+- libxml2=2.9.4=0
+- matplotlib=2.0.2=np113py35_0
 - mkl=2018.0.1=h19d6760_4
 - ncurses=6.0=h9df7e31_2
-- netcdf4=1.3.1=py35h30e38b8_2
 - numpy=1.13.3=py35hd829ed6_0
 - openssl=1.0.2n=hb7f436b_0
 - pcre=8.41=hc27e229_1
@@ -43,7 +51,8 @@ dependencies:
 - python=3.5.4=h417fded_24
 - python-dateutil=2.6.1=py35h90d5b31_1
 - pytz=2017.3=py35hb13c558_0
-- qt=5.6.2=h974d657_12
+- pyyaml=3.12=py35h46ef4ae_1
+- qt=5.6.2=5
 - readline=7.0=ha6073c6_4
 - setuptools=36.5.0=py35ha8c1747_0
 - sip=4.18.1=py35h9eaea60_2
@@ -53,8 +62,6 @@ dependencies:
 - tornado=4.5.2=py35hf879e1d_0
 - wheel=0.30.0=py35hd3883cf_1
 - xz=5.2.3=h55aa19d_2
+- yaml=0.1.7=had09818_2
 - zlib=1.2.11=ha838bed_2
-- pip:
-  - pygrib==2.0.2
-prefix: /home/gustavo/.conda/envs/grib2nc
 
