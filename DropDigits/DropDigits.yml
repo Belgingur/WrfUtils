@@ -55,7 +55,7 @@ exclude: []
 # The default key decides how we handle variables with no specific overrides
 overrides:
 
-  # Valid datatype specifiers include:
+  # Valid data-type specifiers include:
   #   'u1' ( 8-bit unsigned integer)  0 .. 255
   #   'u2' (16-bit unsigned integer)  0 .. 65535
   #   'u4' (32-bit unsigned integer)  0 .. 4.295e9
