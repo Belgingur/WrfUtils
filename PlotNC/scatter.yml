@@ -1,0 +1,8 @@
+#Simple list o of points to be ploted as scatter over the map.
+
+lat:
+  - -23.546
+  - 
+lon:
+  - -44.336
+  - 
