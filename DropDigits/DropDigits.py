@@ -10,13 +10,14 @@ import logging.config
 import os
 import sys
 import time
+from datetime import datetime
 from math import log10, ceil
 from typing import List, Dict, Any
 from typing import Union
 
 import numpy as np
 import yaml
-from netCDF4 import Dataset, Variable
+from netCDF4 import Dataset, Variable, MFDataset
 
 from utils import out_file_name, setup_logging, read_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
     value_with_override, override_field, create_output_dataset
@@ -62,7 +63,11 @@ def configure() -> (argparse.Namespace, dict):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-c', '--config', default='DropDigits.yml',
                         help='Configuration to read (def: DropDigits.yml)')
-    parser.add_argument('in_files', nargs="+",
+    parser.add_argument('-f', '--fragments', default=False, action='store_true',
+                        help='Process the input files as a single multi-file dataset')
+    parser.add_argument('-s', '--sort-files', default=False, action='store_true',
+                        help='Sort the input file names alphabetically before assembling')
+    parser.add_argument('in_files', nargs='+',
                         help='wrf output files to process')
     args = parser.parse_args()
 
@@ -72,6 +77,16 @@ def configure() -> (argparse.Namespace, dict):
         LOG.debug('Config: %s', config)
 
     return args, config
+
+
+def arrange_in_files(args) -> List[Union[str, List[str]]]:
+    # Creates a list of input data files, where each is either a single file or a list of files.
+    files = args.in_files
+    if args.sort_files:
+        files = sorted(files)
+    if args.fragments:
+        files = [files]
+    return files
 
 
 def build_overrides(config: Dict) -> Dict[str, Override]:
@@ -92,9 +107,9 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
     return overrides
 
 
-def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
+def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]) -> List[str]:
     """
-    Retrieves the variables from in_ds which we intend to copy to out_ds.
+    Retrieves the names of variables from in_ds which we intend to copy to out_ds.
     """
     default_include = config.get('default_include', True)
     includes = config.get('include', [])  # type: List[str]
@@ -105,17 +120,15 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
     else:
         LOG.info('Include selected variables %s', ', '.join(includes))
 
-    in_vars = []  # type: List[Variable]
-    included_names = []  # type: List[str]
-    excluded_names = []  # type: List[str]
+    included_names: List[str] = []
+    excluded_names: List[str] = []
     for var_name, in_var in in_ds.variables.items():
         if (default_include and var_name not in excludes) or \
                 (not default_include and var_name in includes):
             included_names.append(var_name)
-            in_vars.append(in_var)
         else:
             excluded_names.append(var_name)
-    LOG.debug('Included variables: %s', ', '.join(map(str, in_vars)))
+    LOG.debug('Included variables: %s', ', '.join(included_names) or '<none>')
     LOG.info('Excluded variables: %s', ', '.join(excluded_names) or '<none>')
 
     if default_include:
@@ -125,24 +138,29 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]):
         if unseen_vars:
             LOG.warning('Missing variables in include list: %s', ', '.join(unseen_vars))
 
-    return in_vars
+    return included_names
 
 
-def create_output_variables(in_ds:Dataset, out_ds: Dataset, in_vars: List[Variable], overrides: Dict[str, Override],
-                            comp_level: int, chunking: bool, max_k: int = None) -> List[Variable]:
+def create_output_variables(
+        in_ds_0: Dataset, out_ds: Dataset,
+        var_names: List[str], overrides: Dict[str, Override],
+        comp_level: int, chunking: bool, max_t: int, max_k: int
+) -> List[Variable]:
     LOG.info('Create output variables with overrides:')
     out_vars = []
     default_override = overrides.get('default')
-    for in_var in in_vars:
-        var_name = in_var.name
+    for var_name in var_names:
+        in_var_0 = in_ds_0.variables[var_name]
         override = overrides.get(var_name, default_override)
         LOG.info('    %- 10s %- 10s %s..%s', var_name, override, override.range_min, override.range_max)
 
-        data_type = value_with_override('datatype', override, in_var)
-        chunk_sizes = pick_chunk_sizes(in_ds, in_var.dimensions, max_k) if chunking else None
-        out_var = out_ds.createVariable(in_var.name,
+        data_type = value_with_override('datatype', override, in_var_0)
+        chunk_sizes = None
+        if chunking:
+            chunk_sizes = pick_chunk_sizes(out_ds, in_var_0.dimensions, max_t=max_t, max_k=max_k)
+        out_var = out_ds.createVariable(var_name,
                                         data_type,
-                                        dimensions=in_var.dimensions,
+                                        dimensions=in_var_0.dimensions,
                                         zlib=comp_level > 0,
                                         complevel=comp_level,
                                         shuffle=True,
@@ -151,18 +169,19 @@ def create_output_variables(in_ds:Dataset, out_ds: Dataset, in_vars: List[Variab
                 'description', 'least_significant_digit', 'scale_factor', 'add_offset',
                 'FieldType', 'MemoryOrder', 'units', 'stagger', 'coordinates',
         ):
-            override_field(out_var, field, override, in_var)
+            override_field(out_var, field, override, in_var_0)
         out_vars.append(out_var)
 
     LOG.debug('Converted variables: \n%s', '\n'.join(map(str, out_vars)))
     return out_vars
 
 
-def create_output_dimensions(in_ds: Dataset, in_vars: List[Variable], out_ds: Dataset, margin: int,
-                             max_k: int = None):
+def create_output_dimensions(in_ds: Dataset, var_names: List[str], out_ds: Dataset,
+                             margin: int, max_t: int, max_k: int = None):
     LOG.info('Add output dimensions:')
     need_dims = set()
-    for in_var in in_vars:
+    for var_name in var_names:
+        in_var = in_ds.variables[var_name]
         for dim_name in in_var.dimensions:
             need_dims.add(dim_name)
 
@@ -170,7 +189,12 @@ def create_output_dimensions(in_ds: Dataset, in_vars: List[Variable], out_ds: Da
     excluded_names = []
     for dim_name, in_dim in in_ds.dimensions.items():
         if dim_name in need_dims:
-            size = None if in_dim.isunlimited() else in_dim.size
+            if dim_name == 'Time':
+                size = max_t
+            elif in_dim.isunlimited():
+                size = None
+            else:
+                size = in_dim.size
             if size and looks_planar(dim_name):
                 size -= 2 * margin
             elif max_k and dim_name == 'bottom_top':
@@ -237,19 +261,20 @@ def main():
     args, config = configure()
     overrides = build_overrides(config)
     out_file_pattern = config.get('output_filename', './{filename}_reduced.nc4')
+    in_files = arrange_in_files(args)
     total_start_time = time.time()
     total_errors = 0
     total_in_size = total_out_size = 0
     LOG.info('')
-    for in_file in args.in_files:
+    for in_file in in_files:
         start_time = time.time()
         out_file = out_file_name(in_file, out_file_pattern)
 
         errors = process_file(in_file, out_file, config=config, overrides=overrides)
 
         # Print space saved and time used
-        in_size = os.path.getsize(in_file)
-        out_size = os.path.getsize(out_file)
+        in_size = file_size(in_file)
+        out_size = file_size(out_file)
         total_errors += errors
         total_in_size += in_size
         total_out_size += out_size
@@ -265,7 +290,7 @@ def main():
             sys.exit(1)
         LOG.info('')
 
-    if len(args.in_files) > 1:
+    if len(in_files) > 1:
         total_out_percent = (100.0 * total_out_size / total_in_size)
         LOG.info('Total size: {:,.0f} MB -> {:,.0f} MB, reduced to {:,.2g}% in {:.1f} s'.format(
             total_in_size / 1024.0,
@@ -277,12 +302,48 @@ def main():
             LOG.error('%d errors in total', total_errors)
 
 
-def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrides: Dict[str, Override]) -> int:
+def file_size(files: Union[str, List[str]]):
+    """ Return the size of a file or cumulative size of a list of files. """
+    if isinstance(files, list):
+        return sum(os.path.getsize(file) for file in files)
+    else:
+        return os.path.getsize(files)
+
+
+def open_dataset(in_file):
+    # If we have multiple input files, make in_ds be a MFDataset.
+    # and in_ds_0 be a Dataset for the first file to get more meta-data
+    if isinstance(in_file, list):
+        if len(in_file) > 1:
+            in_ds = MFDataset(in_file, 'r')
+            in_ds_0 = Dataset(in_file[0])
+            return in_ds, in_ds_0, in_file[0]
+
+        in_file = in_file[0]
+
+    # If we have a single input file, make in_ds and in_ds_0 be the Dataset for that file
+    in_ds = Dataset(in_file, 'r')
+    return in_ds, in_ds, in_file
+
+
+def count_time_steps(in_ds):
+    var_t: Variable = in_ds.variables.get('Times')
+    idx_t = var_t.dimensions.index('Time')
+    max_t = var_t.shape[idx_t]
+    return max_t
+
+
+def process_file(
+        in_file: Union[str, List[str]], out_file: str, *,
+        config: Dict[str, Any], overrides: Dict[str, Override]
+) -> int:
     LOG.info('Opening input dataset %s', in_file)
     errors = 0
-    in_ds = Dataset(in_file, 'r')
-    in_vars = resolve_input_variables(in_ds, config)
-    dates = read_wrf_dates(in_ds)
+
+    in_ds, in_ds_0, nominal_infile = open_dataset(in_file)
+
+    var_names: List[str] = resolve_input_variables(in_ds, config)
+    dates: List[datetime] = read_wrf_dates(in_ds)
 
     LOG.info('Dimensional limits')
     if len(dates) > 1:
@@ -296,13 +357,19 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
     LOG.info('    Margin is %d cells', margin)
     max_k = config.get('sigma_limit', None)  # type: Union[int, None]
     log_sigma_level_height(in_ds, max_k)
+    max_t = count_time_steps(in_ds)
 
     custom_attributes = config.get('custom_attributes', dict())
-    out_ds = create_output_dataset(out_file, in_file, in_ds, custom_attributes)
-    create_output_dimensions(in_ds, in_vars, out_ds, margin, max_k)
+    out_ds = create_output_dataset(out_file, nominal_infile, in_ds, custom_attributes)
+    create_output_dimensions(in_ds, var_names, out_ds, margin, max_t, max_k)
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
-    out_vars = create_output_variables(in_ds, out_ds, in_vars, overrides, comp_level, chunking, max_k)
+    out_vars = create_output_variables(
+        in_ds_0, out_ds,
+        var_names, overrides,
+        comp_level, chunking,
+        max_t, max_k
+    )
 
     LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
     for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
@@ -313,7 +380,10 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
             LOG.info('Last chunk is short')
 
         # Loop through variables
-        for in_var, out_var in zip(in_vars, out_vars):
+        for out_var in out_vars:
+            var_name = out_var.name
+            in_var = in_ds.variables[var_name]
+            in_var_0 = in_ds_0.variables[var_name]
 
             # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
             var_max_k = None  # type: int
@@ -325,9 +395,11 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
 
             # Carve out a chunk of input variable that we want to copy
             if var_max_k is not None:
-                in_chunk = in_var[c_start:c_end, 0:var_max_k, margin:-margin, margin:-margin]
+                max_j, max_i = in_var.shape[-2:]
+                in_chunk: np.ndarray = in_var[c_start:c_end, 0:var_max_k, margin:max_j - margin, margin:max_i - margin]
             elif len(in_var.shape) >= 3:
-                in_chunk = in_var[c_start:c_end, ..., margin:-margin, margin:-margin]
+                max_j, max_i = in_var.shape[-2:]
+                in_chunk = in_var[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin]
             else:
                 in_chunk = in_var[c_start:c_end]
             out_var[c_start - spinup:c_end - spinup] = in_chunk
@@ -335,14 +407,14 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
 
             # Log variable dimensions and sanity check
             dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
-            override = overrides.get(in_var.name) or overrides.get('default')
-            if in_var.datatype == '|S1':
+            override = overrides.get(var_name) or overrides.get('default')
+            if in_var_0.datatype == '|S1':
                 # Text data
-                LOG.info('    {:10}          N/A          N/A  {}'.format(in_var.name, dim_str))
+                LOG.info('    {:10}          N/A          N/A  {}'.format(var_name, dim_str))
             else:
                 # Numeric data
                 chunk_min, chunk_max = np.min(in_chunk), np.max(in_chunk)
-                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(in_var.name, chunk_min, chunk_max, dim_str))
+                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(var_name, chunk_min, chunk_max, dim_str))
                 if override.range_min is not None and override.range_max is not None:
                     sf = override.scale_factor  # Allow overlap of 1 scale factor to be truncated away
                     if chunk_min < override.range_min - sf or chunk_max > override.range_max + sf:
@@ -355,8 +427,10 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
                         errors += 1
 
     # Close our datasets
-    in_ds.close()
     out_ds.close()
+    in_ds.close()
+    if in_ds_0 is not in_ds:
+        in_ds_0.close()
     return errors
 
 

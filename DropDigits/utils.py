@@ -72,16 +72,18 @@ def memoize(f):
     return helper
 
 
-def pick_chunk_sizes(in_ds: Dataset, dimensions: List[str], max_k: int = None) -> Tuple[int, ...]:
+def pick_chunk_sizes(out_ds: Dataset, dimensions: List[str], *, max_t: int=None, max_k: int = None) -> Tuple[int, ...]:
     """
     Given a variable, pick the appropriate chunk sizes to apply to it given it's shape
     """
 
     def adjust_sizes(unadjusted: Iterable[int]) -> Iterator[int]:
         for cs, dim_name in zip(unadjusted, dimensions):
-            dim = in_ds.dimensions[dim_name]  # type: Dimension
-            if dim.size is not None:
-                cs = min(dim.size, cs)
+            dim = out_ds.dimensions[dim_name]  # type: Dimension
+            if dim_name in (DIM_TIME,) and max_t is not None:
+                cs = min(cs, max_t)
+            elif dim.size is not None:
+                cs = min(cs, dim.size)
             if dim_name in (DIM_BOTTOM_TOP, DIM_BOTTOM_TOP_STAG) and max_k is not None:
                 cs = min(cs, max_k)
             yield cs
@@ -89,7 +91,8 @@ def pick_chunk_sizes(in_ds: Dataset, dimensions: List[str], max_k: int = None) -
     if len(dimensions) > len(CHUNK_SIZES):
         raise IndexError('We can only deal with variables or {} dimensions or less', len(CHUNK_SIZES))
     unadjusted = CHUNK_SIZES[len(dimensions) - 1]
-    return tuple(adjust_sizes(unadjusted))
+    adjusted = tuple(adjust_sizes(unadjusted))
+    return adjusted
 
 
 def read_wrf_dates(in_ds: Dataset) -> np.ndarray:
@@ -118,7 +121,8 @@ def out_file_name(in_file: str, outfile_pattern: str) -> str:
      - ext      The file extension excluding dot (ex: '.nc4') (ex: '')
      - path     The path to the input file (ex: '../runtime') (ex: '.')
     """
-    in_path, in_base = os.path.split(in_file)
+    nominal_in_file = in_file[0] if isinstance(in_file, list) else in_file
+    in_path, in_base = os.path.split(nominal_in_file)
     in_base, in_ext = os.path.splitext(in_base)
     if in_ext: in_ext = in_ext[1:]  # Cut the dot
     if not in_path: in_path = '.'  # No path means current dir

@@ -110,13 +110,13 @@ def test_create_output_variables_native():
     )
     assert out_ds.createVariable.call_args_list == [
         call('U', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('V', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
 
@@ -132,11 +132,11 @@ def test_create_output_variables_fallback():
     )
     assert out_ds.createVariable.call_args_list == [
         call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('HGT', np.float32, chunksizes=(128, 19), complevel=7,
-             dimensions=('south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
 
@@ -156,13 +156,13 @@ def test_create_output_variables_mixed():
     )
     assert out_ds.createVariable.call_args_list == [
         call('T', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('wind_speed', np.uint16, chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('wind_dir', np.uint16, chunksizes=(128, 5, 16, 16), complevel=7,
-             dimensions=('Time', 'bottom_top', 'south_north', 'west_east'), shuffle=True, zlib=True),
+             dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
 

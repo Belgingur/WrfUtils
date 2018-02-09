@@ -124,14 +124,14 @@ def create_output_variables(
         dimensions = (destagger_dim_name(d) for d in source.dimensions)
         if var_name in VAR_NAMES_STATIC:
             dimensions = filter(lambda s: s != DIM_TIME, dimensions)
-        dimensions = tuple(dimensions)
+        dimensions = list(dimensions)
 
         sf = getattr(source, 'scale_factor', 1)
         off = getattr(source, 'add_offset', 0)
         dtn = datatype_name(source.datatype)
         LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), dtn, sf, off)
 
-        chunk_sizes = pick_chunk_sizes(in_ds, dimensions, elevation_limit) if chunking else None
+        chunk_sizes = pick_chunk_sizes(in_ds, dimensions, max_k=elevation_limit) if chunking else None
         out_var = out_ds.createVariable(var_name,
                                         source.datatype,
                                         dimensions=dimensions,

@@ -145,7 +145,7 @@ def test_pick_chunk_sizes(dimension_sizes, max_k, chunk_sizes):
         print('size of {} is {}'.format(dim_name, dim_size))
         dimensions.append(dim_name)
         in_ds.dimensions[dim_name].size = dim_size
-    dimension_sizes = pick_chunk_sizes(in_ds, dimensions, max_k)
+    dimension_sizes = pick_chunk_sizes(in_ds, dimensions, max_k=max_k)
     assert dimension_sizes == chunk_sizes
 
 
