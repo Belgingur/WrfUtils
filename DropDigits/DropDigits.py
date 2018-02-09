@@ -285,7 +285,10 @@ def process_file(in_file: str, out_file: str, *, config: Dict[str, Any], overrid
     dates = read_wrf_dates(in_ds)
 
     LOG.info('Dimensional limits')
-    dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)
+    if len(dates) > 1:
+        dt = int((dates[-1] - dates[0]).total_seconds() / (len(dates) - 1) + 0.5)
+    else:
+        dt = 3600
     spinup_hours = config.get('spinup_hours', 0)
     spinup = int(spinup_hours * 3600. / dt + 0.5)
     LOG.info('    Spinup is %dh = %d steps', spinup_hours, spinup)
