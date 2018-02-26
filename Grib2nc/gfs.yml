@@ -161,7 +161,7 @@ file_name:
   '{name}:{date}:{member}:{analdate}'
 
 time_step:
-  1
+  3
 
 levels:
   3 : 28
