@@ -15,8 +15,9 @@ conda env create -f enviroment.yml
 
 
 ## To run:
-`$: python grib2nc.py -g $PATH_GRIB -o $PATH_OUTPUT -c $MODEL.yml`
-
+```sh
+ python grib2nc.py -g $PATH_GRIB -o $PATH_OUTPUT -c $MODEL.yml`
+```
 Note:
  Change file name format and timestep in gfs.yml or cfs.yml 
 Where: 
