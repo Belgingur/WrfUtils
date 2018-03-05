@@ -20,6 +20,7 @@ conda env create -f enviroment.yml
 ```
 Note:
  Change file name format and timestep in gfs.yml or cfs.yml 
+
 Where: 
 
  $PATH_GRIB is the especific folder where the grib files are and 
