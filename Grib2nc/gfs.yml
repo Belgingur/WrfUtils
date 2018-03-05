@@ -6,81 +6,81 @@
 Downward long-wave radiation flux:
 - GLW
 - u2
-- 0.01
+- 0.001
 - sfc
 Downward short-wave radiation flux:
 - SWDOWN
 - u2
-- 0.01
+- 0.001
 - sfc
 acpcp:
 - RAINC
 - u2
-- 0.01
+- 0.001
 - sfc
 apcp:
 - RAINNC
 - u2
-- 0.01
+- 0.001
 - sfc
 cpofp:
 - SR
-- u1
-- 0.01
+- u2
+- 0.001
 - sfc
 csnow:
 - SNOWC
-- u1
-- 0.01
+- u2
+- 0.001
 - sfc
 cwatclm:
 - QCLOUD
-- i4
+- u4
 - 1.0e-06
 - sfc
 gfluxsfc:
 - GRDFLX
-- i2
-- 0.1
+- u2
+- 0.01
 - sfc
 gh:
 - GHT
-- i2
-- 10
+- u2
+- 1
 - ver
 gust:
 - GUST
-- u2
-- 0.01
+- f4
+- 0.001
 - sfc
 hpbl:
 - PBLH
 - u4
-- 0.1
+- 0.01
 - sfc
 latitude:
 - XLAT
-- u2
+- f8
 - 1.0e-05
 - sfc
 longitude:
 - XLONG
-- u2
+- f8
 - 1.0e-05
 - sfc
 msletmsl:
 - MSLP
 - u4
-- 0.01
+- 0.001
 - sfc
 pres:
 - P
-- i2
-- 0.01
+- u2
+- 0.001
 - sfc
 q:
 - Q
-- i2
+- u4
 - 1.0e-08
 - ver
 r2:
@@ -96,7 +96,7 @@ sde:
 sdwe:
 - SNOW
 - u4
-- 0.1
+- 0.01
 - sfc
 sm:
 - SMOISu2
@@ -105,56 +105,56 @@ sm:
 snod:
 - SNOWNC
 - u4
-- 0.01
+- 0.001
 - sfc
 sp:
 - PSFC
-- u4
-- 0.01
+- i4
+- 0.001
 - sfc
 spfh2m:
 - Q2
-- i4
+- u4
 - 1.0e-08
 - sfc
 st:
 - TSLB
 - u2
-- 0.01
+- 0.001
 - sfc
 t:
 - T
-- u2
-- 0.01
+- f4
+- 0.001
 - ver
 t2m:
 - T2
-- u2
-- 0.01
+- f4
+- 0.001
 - sfc
 u:
 - U
-- i2
-- 0.01
+- f4
+- 0.001
 - ver
 u10:
 - U10
-- u2
-- 0.01
+- f8
+- 0.001
 - sfc
 v:
 - V
-- i2
-- 0.01
+- f4
+- 0.001
 - ver
 v10:
 - V10
-- u2
+- f8
 - 0.01
 - sfc
 w:
 - W
-- i2
+- f4
 - 0.01
 - sfc
 file_name:

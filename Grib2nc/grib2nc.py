@@ -80,13 +80,15 @@ def NC_is_new(date_anl, grib_fn, nc_file, fn_config):
         partial_fn = grib_fn.split(":")
         nc_fn = partial_fn[
                 fn_config.index('{name}')]+":"\
-                    +date_anl.strftime('%Y-%m-%d_%H:%M')+':'+\
+                    +date_anl.strftime('%Y-%m-%d_%H')+':'+\
                         partial_fn[fn_config.index('{member}')]+'.nc'
 
     except:
-        partial_fn = grib_fn.split(":")
-        nc_fn = partial_fn[0]+":"+date_anl.strftime('%Y-%m-%d_%H:%M')+\
-                                            ':'+partial_fn[2][:10]+'.nc'
+        partial_fn = grib_fn.split(".")
+        nc_fn = partial_fn[
+                fn_config.index('{name}')]+":"\
+                           +date_anl.strftime('%Y-%m-%d_%H')+'.nc'
+
     else:
         print("Unknown filename format, %s" % (grib_fn))
         exit(1)
@@ -131,11 +133,11 @@ def create_NC(nc_file, grib, comp_lvl=6):
     lon = latlon[1]
     nc_dm = create_NC_dimension(nc_file, lat.shape)
     if nc_dm == True:
-        nc_file.createVariable('XLAT', 'u2', ('south_north', 'west_east'),\
-              zlib=True, least_significant_digit=3, complevel=int(comp_lvl))
-        nc_file.createVariable('XLONG', 'u2', ('south_north', 'west_east'),\
-              zlib=True, least_significant_digit=3, complevel=int(comp_lvl))
-        nc_file.createVariable('Times', 'S2', ('Time'), zlib=True, complevel=6)
+        nc_file.createVariable('XLAT', 'f8', ('south_north', 'west_east'),\
+              zlib=True, least_significant_digit=5, complevel=int(comp_lvl))
+        nc_file.createVariable('XLONG', 'f8', ('south_north', 'west_east'),\
+              zlib=True, least_significant_digit=5, complevel=int(comp_lvl))
+        nc_file.createVariable('Times', 'S1', ('Time'), zlib=True, complevel=6)
 
         nc_file.variables['XLAT'][:]  = lat
         nc_file.variables['XLONG'][:] = lon
@@ -155,7 +157,13 @@ def append_NC(nc_file, _var, grib, step,levels, comp_lvl=6):
     offset = _get_GRIB_offset(grib)
     timestep = _get_timestep(offset, step)
     d0 = _get_GRIB_date(grib)
-    nc_file['Times'][timestep]=(d0+datetime.timedelta(hours=offset)).strftime("%Y-%m-%d_%H:00:00")
+    try:
+        nc_file['Times'][timestep]=(d0+datetime.timedelta(hours=offset)).strftime("%Y-%m-%d_%H:00:00")
+    except:
+        suc = create_NC(nc_file, grib)
+        if suc == True:
+            nc_file['Times'][timestep]=(d0+datetime.timedelta(hours=offset)).strftime("%Y-%m-%d_%H:00:00")
+
     try:
         if _var[3] == 'sfc':
             nc_file.variables[_var[0]][timestep, :, :] = grib.values
