@@ -19,7 +19,21 @@ conda env create -f enviroment.yml
  python grib2nc.py -g $PATH_GRIB -o $PATH_OUTPUT -c $MODEL.yml`
 ```
 Note:
- Change file name format and timestep in gfs.yml or cfs.yml 
+ Change file name format, data type and timestep in gfs.yml or cfs.yml accordingly to your use.
+``` 
+NC data types: 
+       'S1' : CHAR,
+       'i1' : BYTE,
+       'u1' : UBYTE,
+       'i2' : SHORT,
+       'u2' : USHORT,
+       'i4' : INT,
+       'u4' : UINT,
+       'i8' : INT64,
+       'u8' : UINT64,
+       'f4' : FLOAT,
+       'f8' : DOUBLE
+```
 
 Where: 
 
