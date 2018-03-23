@@ -35,7 +35,7 @@ def _get_timestep(offset, step=3):
     """
     return int(offset // step)
 
-def _push_GRIB_NC(gribfile, grib_fn, nc_file, yml,t=0):
+def _push_GRIB_NC(gribfile, grib_fn, nc_file, yml, t=0):
     """
         Insert grib data into nc file
     """
@@ -76,22 +76,26 @@ def NC_is_new(date_anl, grib_fn, nc_file, fn_config):
     """
         Verify if the nc file already exists or is a new one
     """
+    fn_config = fn_config.split(":")
     try:
-        partial_fn = grib_fn.split(":")
-        nc_fn = partial_fn[
-                fn_config.index('{name}')]+":"\
-                    +date_anl.strftime('%Y-%m-%d_%H')+':'+\
-                        partial_fn[fn_config.index('{member}')]+'.nc'
-
-    except:
         partial_fn = grib_fn.split(".")
         nc_fn = partial_fn[
                 fn_config.index('{name}')]+":"\
-                           +date_anl.strftime('%Y-%m-%d_%H')+'.nc'
+                    +partial_fn[fn_config.index('{analdate}')]+':'+\
+                        partial_fn[fn_config.index('{member}')]+'.nc'
+
+    except:
+        partial_fn = grib_fn.split(":")
+        nc_fn = partial_fn[
+                fn_config.index('{name}')]+":"\
+                    +partial_fn[fn_config.index('{analdate}')]+':'+\
+                        partial_fn[fn_config.index('{member}')]+'.nc'
 
     else:
         print("Unknown filename format, %s" % (grib_fn))
-        exit(1)
+        print("#####",nc_fn, "Will be used")
+        # exit(1)
+
     if os.path.isfile(nc_fn):
         t = 1
         try:
@@ -138,10 +142,20 @@ def create_NC(nc_file, grib, comp_lvl=6):
         nc_file.createVariable('XLONG', 'f8', ('south_north', 'west_east'),\
               zlib=True, least_significant_digit=5, complevel=int(comp_lvl))
         nc_file.createVariable('Times', 'S1', ('Time'), zlib=True, complevel=6)
+        nc_file.createVariable('COSALPHA', 'i2', ('south_north', 'west_east'),\
+              zlib=True, least_significant_digit=0, complevel=int(comp_lvl))
+        nc_file.createVariable('SINALPHA', 'i2', ('south_north', 'west_east'),\
+              zlib=True, least_significant_digit=0, complevel=int(comp_lvl))
 
-        nc_file.variables['XLAT'][:]  = lat
+        nc_file.variables['XLAT'][:]  = lat * -1
         nc_file.variables['XLONG'][:] = lon
-
+        shape_ = np.array(lat).shape
+        sin = np.zeros((shape_[0], shape_[1]))
+        cos = sin
+        cos[np.where(cos == 0)] = 1
+        nc_file.variables['COSALPHA'][:] = sin
+        nc_file.variables['SINALPHA'][:] = cos
+        
         nc_file.START_DATE = grib.analDate.strftime('%Y-%m-%d_%H:%M')
         nc_file.HISTORY = "Created by Belgingur grib2nc utility at " + datetime.datetime.now().strftime('%Y-%m-%d_%H:%M')
 
@@ -166,24 +180,24 @@ def append_NC(nc_file, _var, grib, step,levels, comp_lvl=6):
 
     try:
         if _var[3] == 'sfc':
-            nc_file.variables[_var[0]][timestep, :, :] = grib.values
+            nc_file.variables[_var[0]][timestep, :, :] = np.flip(grib.values, axis=0)
             return True
         else:
             level = levels.get(grib.level, 0)
-            nc_file.variables[_var[0]][timestep, level,:, :] = grib.values
+            nc_file.variables[_var[0]][timestep, level,:, :] = np.flip(grib.values, axis=0)
             return True
 
     except:
         if _var[3] == 'sfc':
             nc_file.createVariable(_var[0], _var[1], ('Time', 'south_north', 'west_east'),\
             zlib=True, least_significant_digit=int(np.abs(np.log10(_var[2]))), complevel=int(comp_lvl))
-            nc_file.variables[_var[0]][timestep, :, :] = grib.values
+            nc_file.variables[_var[0]][timestep, :, :] = np.flip(grib.values, axis=0)
             return True
         else:
             level = levels.get(grib.level, 0)
             nc_file.createVariable(_var[0], _var[1], ('Time', 'bottom_top', 'south_north', 'west_east'),\
             zlib=True, least_significant_digit=int(np.abs(np.log10(_var[2]))), complevel=int(comp_lvl))
-            nc_file.variables[_var[0]][timestep, level, :, :] = grib.values
+            nc_file.variables[_var[0]][timestep, level, :, :] = np.flip(grib.values, axis=0)
             return True
 
     else:
@@ -193,13 +207,13 @@ def append_NC(nc_file, _var, grib, step,levels, comp_lvl=6):
 #######################################
 parser = argparse.ArgumentParser(description="This script transform GRIB2 files in to NetCDF")
 parser.add_argument('-g', help="Path to a single grib file or folder", action='store',required=True, dest='GRIB_PATH')
-parser.add_argument('-o', help="Output path for nc file.", action='store', required=True, dest='OUTPUT_PATH')
+# parser.add_argument('-o', help="Output path for nc file.", action='store', required=False, dest='OUTPUT_PATH')
 parser.add_argument('-c', help="Configuration file(YAML) for especific model", \
                                             action='store',required=True, dest='yml')
 args=parser.parse_args()
 
 path_grib = args.GRIB_PATH
-path_out = args.OUTPUT_PATH
+# path_out = args.OUTPUT_PATH
 yml_file = args.yml
 
 with open(yml_file,'r') as yf:
@@ -212,6 +226,7 @@ except:
     files = [path_grib]
 
 nc_file = 'Null'
+# nc_file = 'Null' or Dataset(path_out, 'w')
 for t, file in enumerate(files, 0):
     try:
         gribfile = pygrib.open(path_grib + file)

@@ -158,7 +158,7 @@ w:
 - 0.01
 - sfc
 file_name:
-  '{name}:{date}:{member}:{analdate}'
+  '{name}:{analdate}:{member}:{area}:{date}'
 
 time_step:
   3
