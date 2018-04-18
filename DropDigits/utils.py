@@ -1,4 +1,5 @@
 import datetime
+import getpass
 import logging
 import logging.config
 import os
@@ -134,6 +135,19 @@ def out_file_name(in_file: str, outfile_pattern: str) -> str:
     return outfile
 
 
+def getuser():
+    try:
+        return getpass.getuser()
+    except:
+        return 'unknown user'
+
+
+def gethostname():
+    try:
+        socket.gethostname()
+    except:
+        return 'unknown host'
+
 def create_output_dataset(out_file: str, in_file: str, in_ds: Dataset,
                           custom_attributes: Dict[str, str], app_name: str = None) -> (str, Dataset):
     """
@@ -163,16 +177,12 @@ def create_output_dataset(out_file: str, in_file: str, in_ds: Dataset,
         setattr(out_ds, attr, v)
         LOG.debug('    %s = %s', attr, v)
     LOG.info('Add attributes:')
-    add_attr(out_ds, 'history', 'Converted with %s at %s by %s on %s' % (
-        app_name,
-        datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S'),
-        os.getlogin(),
-        socket.gethostname()
-    ))
+    date_str = datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S')
+    add_attr(out_ds, 'history', f'Converted with {app_name} at {date_str} by {getuser()} on {gethostname()}')
     add_attr(out_ds, 'source', in_file)
     for name, value in custom_attributes.items():
         add_attr(out_ds, name, value)
-    out_ds.description = 'Reduced version of: %s' % (getattr(in_ds, 'description', in_file))
+    out_ds.description = f'Reduced version of: {getattr(in_ds, "description", in_file)}'
     LOG.info('    description = %s', out_ds.description)
 
     # Flush to disk
