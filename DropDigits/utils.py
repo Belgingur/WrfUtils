@@ -144,7 +144,7 @@ def getuser():
 
 def gethostname():
     try:
-        socket.gethostname()
+        return socket.gethostname()
     except:
         return 'unknown host'
 
