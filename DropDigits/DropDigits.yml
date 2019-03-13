@@ -61,16 +61,16 @@ overrides:
   #   S1 (single-character string)
 
   # Only supported by NETCDF4:
-  #   u1 ( 8-bit unsigned integer)  0 .. 255
-  #   u2 (16-bit unsigned integer)  0 .. 65535
+  #   u1 ( 8-bit unsigned integer)  0 … 255
+  #   u2 (16-bit unsigned integer)  0 … 65535
 
   # Same size as the default f4, so pointless to use  
-  #   u4 (32-bit unsigned integer)  0 .. 4.295e9
+  #   u4 (32-bit unsigned integer)  0 … 4.295e9
   #   i4 (32-bit signed integer)    +- 2.147e9
   #   f4 (32-bit floating point)    +- -3.4e38
 
   # Larger than the default f4, so actively harmful to use
-  #   u8 (64-bit unsigned integer)  0 .. 1.844e19
+  #   u8 (64-bit unsigned integer)  0 … 1.844e19
   #   i8 (64-bit singed integer)    +- 9.223e18
   #   f8 (64-bit floating point)    +- 1.79e308
 
@@ -99,15 +99,15 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.01          
 
-  U:
+  U:  # +-327.657
     datatype: i2
     scale_factor: 0.01
 
-  V:
+  V:  # 0 … 327.68
     datatype: i2
     scale_factor: 0.01
 
-  W:
+  W:  # +-327.68
     datatype: i2
     scale_factor: 0.01
 
@@ -123,20 +123,23 @@ overrides:
   #  datatype: i4
   #  scale_factor: 0.01
 
-  TKE:  # 0..65.535
-    datatype: u2
-    scale_factor: 0.01
+  TKE:  # 0 … 65.535
+    datatype: i2
+    add_offset: -32.768
+    scale_factor: 0.001
 
-  TKE_PBL:  # 0..65.535
-    datatype: u2
-    scale_factor: 0.01
+  TKE_PBL:  # 0 … 65.535
+    datatype: i2
+    add_offset: -32.768
+    scale_factor: 0.001
 
   #P:
   #  datatype: i4
   #  scale_factor: 0.01          
 
-  ALT:
-    datatype: u2
+  ALT:  # 0 … 65.535
+    datatype: i2
+    add_offset:  -32.768
     scale_factor: 0.001
 
   #PB: 
@@ -151,27 +154,30 @@ overrides:
   #  datatype: i4
   #  scale_factor: 0.000000001   
 
-  TSK:
-    datatype: u2
+  TSK:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
-  TH2:
-    datatype: u2
+  TH2:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
-  T2:
-    datatype: u2
+  T2:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
   #PSFC:
   #  datatype: u4
   #  scale_factor: 0.01
 
-  U10:
+  U10:  # +-327.68
     datatype: i2
     scale_factor: 0.01
 
-  V10:
+  V10:  # +-327.68
     datatype: i2
     scale_factor: 0.01
 
@@ -179,12 +185,14 @@ overrides:
   #  datatype: u4
   #  scale_factor: 1.0           
 
-  RELHUM:
-    datatype: u2
+  RELHUM:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
-  RH2:
-    datatype: u2
+  RH2:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
   #MSLP: 
@@ -215,43 +223,49 @@ overrides:
   #  datatype: i4
   #  scale_factor: 0.000000001   
 
-  TSLB:
-    datatype: u2
+  TSLB:  # 0 … 655.35
+    datatype: i2
+    add_offset: -327.68
     scale_factor: 0.01
 
-  SMOIS:
-    datatype: u2
+  SMOIS:  # 0 … 6.5535
+    datatype: i2
+    add_offset: -3.2768
     scale_factor: 0.0001
 
-  GRDFLX:
+  GRDFLX:  # +-3276.8
     datatype: i2
     scale_factor: 0.1
 
-  ACSNOM:
-    datatype: u2
+  ACSNOM:  # 0 … 6553.5
+    datatype: i2
+    add_offset:  -3276.8
     scale_factor: 0.1
 
   #SNOW: 
   #  datatype: u4
   #  scale_factor: 0.1           
 
-  SNOWH:
-    datatype: u2
+  SNOWH:  # 0 … 65.535
+    datatype: i2
+    add_offset:  -32.768
     scale_factor: 0.001
 
-  SINALPHA:
+  SINALPHA:  # +-3.2768
     datatype: i2
     scale_factor: 0.0001
 
-  COSALPHA:
-    datatype: u2
+  COSALPHA:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
   HGT:
     datatype: i2
-    scale_factor: 10
+    add_offset: -4000
+    scale_factor: 0.2
 
-  #SNOWNC: 
+  #SNOWNC:
   #  datatype: u4
   #  scale_factor: 0.01          
 
@@ -263,112 +277,114 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.01          
 
-  SWDOWN:
-    datatype: u2
+  SWDOWN:  # 0 … 6553.5
+    datatype: i2
+    add_offset:  -3276.8
     scale_factor: 0.1
 
-  GLW:
-    datatype: u2
-    scale_factor: 0.01
-
-  XLAT_U:
+  GLW:  # 0 … 655.35
     datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
-  XLONG_U:
-    datatype: i2
-    scale_factor: 0.01
-
-  XLAT_V:
-    datatype: i2
-    scale_factor: 0.01
-
-  XLONG_V:
-    datatype: i2
-    scale_factor: 0.01
-
-  #PBLH: 
+  #PBLH:
   #  datatype: u4
   #  scale_factor: 0.1           
 
-  REGIME:
-    datatype: u2
+  REGIME:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  SNOWC:
-    datatype: u1
+  SNOWC: # flag
+    datatype: i1
     scale_factor: 0.01
 
-  SR:
-    datatype: u1
+  SR:  # +-1.28
+    datatype: i1
     scale_factor: 0.01
 
-  BN2:
+  BN2:  # +-0.032768
     datatype: i2
     scale_factor: 0.000001
 
-  SAVE_TOPO_FROM_REAL:
-    datatype: u2
+  SAVE_TOPO_FROM_REAL:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  UST_T:
-    datatype: u2
+  UST_T:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  ASH_FALL:
-    datatype: u2
+  ASH_FALL:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  SEED1:
-    datatype: u2
+  SEED1:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  SEED2:
-    datatype: u2
+  SEED2:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  SST:
-    datatype: u2
+  SST:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
-  ZNU:
-    datatype: u2
+  ZNU:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  ZNW:
-    datatype: u2
+  ZNW:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  ZS:
-    datatype: u2
+  ZS:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  ZETATOP:
-    datatype: u2
+  ZETATOP:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
   #XTIME: 
   #  datatype: u4
   #  scale_factor: 0.1           
 
-  CWM:
-    datatype: u2
+  CWM:  # 0 … 0.065535
+    datatype: i2
+    add_offset:  -0.032768
     scale_factor: 0.000001
 
-  F_ICE_PHY:
-    datatype: u2
+  F_ICE_PHY:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  F_RAIN_PHY:
-    datatype: u2
+  F_RAIN_PHY:  # 0 … 6.5535
+    datatype: i2
+    add_offset:  -3.2768
     scale_factor: 0.0001
 
-  F_RIMEF_PHY:
-    datatype: u2
+  F_RIMEF_PHY:  # 0 … 65.535
+    datatype: i2
+    add_offset:  -32.768
     scale_factor: 0.001
 
-  P_TOP:
-    datatype: u2
+  P_TOP:  # 0 … 65535
+    datatype: i2
+    add_offset: -32768
     scale_factor: 1
 
   #QNICE: 
@@ -387,13 +403,14 @@ overrides:
   #  datatype: i4
   #  scale_factor: 0.01          
 
-  UST:
-    datatype: u2
+  UST:  # 0 … 655.35
+    datatype: i2
+    add_offset:  -327.68
     scale_factor: 0.01
 
-  times: {}  #    1.76684e+07 .. 1.76685e+07
-  ws: {}  #    0 .. 100
-  wd: {}  #    0 .. 260
+  times: {}  #    1.76684e+07 … 1.76685e+07
+  ws: {}  #    0 … 100
+  wd: {}  #    0 … 260
 
 # Skip this many hours from the start of the input files
 spinup_hours: 0
