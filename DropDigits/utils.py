@@ -44,7 +44,7 @@ CHUNK_SIZES = [
 ]  # type: List[Tuple[int]]
 
 # Range of values allowed by each netcdf type
-TYPE_RANGE = dict(
+TYPE_RANGE: Dict[Union[str, None], Tuple[int, int]] = dict(
     u1=(0, 2 ** 8 - 1),
     u2=(0, 2 ** 16 - 1),
     u4=(0, 2 ** 32 - 1),
@@ -57,7 +57,7 @@ TYPE_RANGE = dict(
 
     f4=(-3.4e38, +3.4e38),
     f8=(-1.79e308, +1.79e308)
-)  # type: Dict[Union[str, None],[int,int]]
+)
 TYPE_RANGE[None] = None
 
 
@@ -148,6 +148,7 @@ def gethostname():
     except:
         return 'unknown host'
 
+
 def create_output_dataset(out_file: str, in_file: str, in_ds: Dataset,
                           custom_attributes: Dict[str, str], app_name: str = None) -> (str, Dataset):
     """
@@ -164,7 +165,12 @@ def create_output_dataset(out_file: str, in_file: str, in_ds: Dataset,
     LOG.info('Creating output file %s', out_file)
     if os.path.exists(out_file):
         logging.warning('Will overwrite existing file')
-    out_ds = Dataset(out_file, mode='w', weakref=True)
+    out_ds = Dataset(
+        out_file,
+        mode='w',
+        weakref=True,
+        format='NETCDF4_CLASSIC'  # NC4C supports chunking and can be read by MFDataset
+    )
 
     if not app_name:
         app_name = Path(sys.argv[0]).name

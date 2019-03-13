@@ -253,11 +253,10 @@ def derived(
     dimensions=('bottom_top',),
     description='Height of vertical interpolation surfaces',
     units='m',
-    datatype=np.uint32,  # +- 2147km   (it can't quite fit in int16 and it's only a few values anyway)
-    scale_factor=0.001  # to 1mm resolution
+    datatype=np.int16,  # We interpolate to integer heights. ±32768
 )
 def height(_chunk_calculator: ChunkCalculator):
-    """ :param _chunk_calculator: Super magic variable giving the ChunkCalculator which is calling use. """
+    """ :param _chunk_calculator: Super magic variable giving the ChunkCalculator which is calling us. """
     return np.array(_chunk_calculator.heights)
 
 # for information on rotated winds, see http://www2.mmm.ucar.edu/wrf/users/FAQ_files/Miscellaneous.html
@@ -295,7 +294,8 @@ def V10_true(U10, V10, COSALPHA, SINALPHA):
 
 @derived(
     units='m s-1',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.01,  # ±327.68
 )
 def wind_speed(U, V):
     return np.sqrt(U ** 2 + V ** 2)
@@ -303,7 +303,8 @@ def wind_speed(U, V):
 
 @derived(
     units='m s-1',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.01,  # ±327.68
 )
 def wind_speed_10(U10, V10):
     return np.sqrt(U10 ** 2 + V10 ** 2)
@@ -312,7 +313,8 @@ def wind_speed_10(U10, V10):
 @derived(
     description='wind direction',
     units='degrees',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.1,  # ±3276.8
 )
 def wind_dir(U_true, V_true):
     return (270 - np.degrees(np.arctan2(-1*V_true, -1*U_true))) % 360
@@ -321,7 +323,8 @@ def wind_dir(U_true, V_true):
 @derived(
     description='wind direction',
     units='degrees',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.1,  # ±3276.8
 )
 def wind_dir_10(U10_true, V10_true):
     return (270 - np.degrees(np.arctan2(-1 * V10_true, -1 * U10_true))) % 360
@@ -329,7 +332,8 @@ def wind_dir_10(U10_true, V10_true):
 
 @derived(
     units='Pa',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=10,  # ±327680
 )
 def pressure(P, PB):
     return P + PB
@@ -337,7 +341,8 @@ def pressure(P, PB):
 
 @derived(
     units='K',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.1,  # ±3276.8
 )
 def potential_temperature(T):
     return T + 300.
@@ -345,7 +350,8 @@ def potential_temperature(T):
 
 @derived(
     units='K',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.1,  # ±3276.8
 )
 def temperature(potential_temperature, pressure):
     return potential_temperature * (pressure / 100000.0) ** 0.2856
@@ -353,7 +359,8 @@ def temperature(potential_temperature, pressure):
 
 @derived(
     units='kg m-3',
-    datatype=np.uint16,
+    datatype=np.int16,
+    scale_factor=0.0001,  # ±3.2768
 )
 def density(ALT):
     return 1/ALT
@@ -363,8 +370,7 @@ def density(ALT):
     dimensions=('south_north', 'west_east'),
     description='Terrain Height',
     units='m',
-    datatype=np.int32,
-    scale_factor=0.001,
+    datatype=np.float32,  # Constant over time and compresses well
 )
 def HGT(HGT_M):
     """ Called if HGT is not present in input and works by renaming HGT_M from geo file. """
@@ -375,8 +381,7 @@ def HGT(HGT_M):
     dimensions=('south_north', 'west_east'),
     description='LATITUDE, SOUTH IS NEGATIVE',
     units='degree_north',
-    datatype=np.uint16,
-    scale_factor=0.01,
+    datatype=np.float32,  # Constant over time and compresses well
 )
 def XLAT(XLAT_M):
     """ Called if XLAT is not present in input and works by renaming XLAT_M from geo file. """
@@ -387,8 +392,7 @@ def XLAT(XLAT_M):
     dimensions=('south_north', 'west_east'),
     description='LONGITUDE, WEST IS NEGATIVE',
     units='degree_east',
-    datatype=np.uint16,
-    scale_factor=0.01,
+    datatype=np.float32,  # Constant over time and compresses well
 )
 def XLONG(XLONG_M):
     """ Called if XLAT is not present in input and works by renaming XLONG_M from geo file. """
