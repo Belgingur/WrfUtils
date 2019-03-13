@@ -36,12 +36,12 @@ DIM_SOUTH_NORTH_STAG = 'south_north_stag'
 CHUNK_SIZE_TIME = 128
 
 # Mapping from number of dimensions to size of chunk of that many dimensions
-CHUNK_SIZES = [
+CHUNK_SIZES: List[Tuple[int, ...]] = [
     (CHUNK_SIZE_TIME,),
     (CHUNK_SIZE_TIME, 19),
     (CHUNK_SIZE_TIME, 16, 16),
     (CHUNK_SIZE_TIME, 10, 16, 16)
-]  # type: List[Tuple[int]]
+]
 
 # Range of values allowed by each netcdf type
 TYPE_RANGE: Dict[Union[str, None], Tuple[int, int]] = dict(
@@ -87,7 +87,7 @@ def pick_chunk_sizes(out_ds: Dataset, dimensions: List[str], *, max_t: int=None,
 
     def adjust_sizes(unadjusted: Iterable[int]) -> Iterator[int]:
         for cs, dim_name in zip(unadjusted, dimensions):
-            dim = out_ds.dimensions[dim_name]  # type: Dimension
+            dim: Dimension = out_ds.dimensions[dim_name]
             if dim_name in (DIM_TIME,) and max_t is not None:
                 cs = min(cs, max_t)
             elif dim.size is not None:
@@ -105,7 +105,7 @@ def pick_chunk_sizes(out_ds: Dataset, dimensions: List[str], *, max_t: int=None,
 
 def read_wrf_dates(in_ds: Dataset) -> np.ndarray:
     """ Convert the WRF-style Times array from list of strings to a list of datetime objects. """
-    times = in_ds.variables['Times']  # type: Variable
+    times: Variable = in_ds.variables['Times']
     dates = []
     for b in times[:]:
         s = b.tostring().decode()

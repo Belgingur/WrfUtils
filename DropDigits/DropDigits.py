@@ -93,7 +93,7 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
     Iterate through config['overrides'] and make each entry into a valid Override object with defaults taken from
     override_defaults
     """
-    specs = config['overrides']  # type: Dict[str, Union[Dict[str], str]]
+    specs: Dict[str, Union[Dict[str], str]] = config['overrides']
     overrides = {}
     for var_name, spec in specs.items():
         try:
@@ -114,8 +114,8 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]) -> List[str]
     Retrieves the names of variables from in_ds which we intend to copy to out_ds.
     """
     default_include = config.get('default_include', True)
-    includes = config.get('include', [])  # type: List[str]
-    excludes = config.get('exclude', [])  # type: List[str]
+    includes: List[str] = config.get('include', [])
+    excludes: List[str] = config.get('exclude', [])
 
     if default_include:
         LOG.info('Include all variables except %s', excludes)
@@ -357,7 +357,7 @@ def process_file(
     LOG.info('    Spinup is %dh = %d steps', spinup_hours, spinup)
     margin = int(config.get('margin_cells', 0))
     LOG.info('    Margin is %d cells', margin)
-    max_k = config.get('sigma_limit', None)  # type: Union[int, None]
+    max_k: Union[int, None] = config.get('sigma_limit', None)
     log_sigma_level_height(in_ds, max_k)
     max_t = count_time_steps(in_ds)
 
@@ -388,7 +388,7 @@ def process_file(
             in_var_0 = in_ds_0.variables[var_name]
 
             # Decide whether to limit the 3rd dimension. We need to have a 3rd dimension and a limit
-            var_max_k = None  # type: int
+            var_max_k: int = None
             if max_k is not None:
                 if 'bottom_top' in in_var.dimensions:
                     var_max_k = max_k
