@@ -56,8 +56,8 @@ overrides:
 
   # Valid data-type specifiers include:
   # Supported by NETCDF4_CLASSIC:
-  #   i1 ( 8-bit signed integer)    +- 127
-  #   i2 (16-bit signed integer)    +- 32767
+  #   i1 ( 8-bit signed integer)    ± 127
+  #   i2 (16-bit signed integer)    ± 32767
   #   S1 (single-character string)
 
   # Only supported by NETCDF4:
@@ -66,13 +66,13 @@ overrides:
 
   # Same size as the default f4, so pointless to use  
   #   u4 (32-bit unsigned integer)  0 … 4.295e9
-  #   i4 (32-bit signed integer)    +- 2.147e9
-  #   f4 (32-bit floating point)    +- -3.4e38
+  #   i4 (32-bit signed integer)    ± 2.147e9
+  #   f4 (32-bit floating point)    ± -3.4e38
 
   # Larger than the default f4, so actively harmful to use
   #   u8 (64-bit unsigned integer)  0 … 1.844e19
-  #   i8 (64-bit singed integer)    +- 9.223e18
-  #   f8 (64-bit floating point)    +- 1.79e308
+  #   i8 (64-bit singed integer)    ± 9.223e18
+  #   f8 (64-bit floating point)    ± 1.79e308
 
   # By default just pass the variable through unchanged
   default:
@@ -99,7 +99,7 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.01          
 
-  U:  # +-327.657
+  U:  # ±327.657
     datatype: i2
     scale_factor: 0.01
 
@@ -107,11 +107,11 @@ overrides:
     datatype: i2
     scale_factor: 0.01
 
-  W:  # +-327.68
+  W:  # ±327.68
     datatype: i2
     scale_factor: 0.01
 
-  PH:  # +-8192
+  PH:  # ±8192
     datatype: i2
     scale_factor: 0.25
 
@@ -120,7 +120,7 @@ overrides:
     add_offset: -163840
     scale_factor: 5  # 0.05 hPa
 
-  T:  # +-327.68
+  T:  # ±327.68
     datatype: i2
     scale_factor: 0.01
 
@@ -134,7 +134,7 @@ overrides:
     add_offset: -32.768
     scale_factor: 0.001
 
-  P:  # +-6553.6
+  P:  # ±6553.6
     datatype: i2
     scale_factor: 0.2  # 0.002 hPa
 
@@ -175,11 +175,11 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.01
 
-  U10:  # +-327.68
+  U10:  # ±327.68
     datatype: i2
     scale_factor: 0.01
 
-  V10:  # +-327.68
+  V10:  # ±327.68
     datatype: i2
     scale_factor: 0.01
 
@@ -241,7 +241,7 @@ overrides:
     add_offset: -3.2768
     scale_factor: 0.0001
 
-  GRDFLX:  # +-3276.8
+  GRDFLX:  # ±3276.8
     datatype: i2
     scale_factor: 0.1
 
@@ -259,7 +259,7 @@ overrides:
     add_offset:  -32.768
     scale_factor: 0.001
 
-  SINALPHA:  # +-3.2768
+  SINALPHA:  # ±3.2768
     datatype: i2
     scale_factor: 0.0001
 
@@ -308,11 +308,11 @@ overrides:
     datatype: i1
     scale_factor: 0.01
 
-  SR:  # +-1.28
+  SR:  # ±1.28
     datatype: i1
     scale_factor: 0.01
 
-  BN2:  # +-0.032768
+  BN2:  # ±0.032768
     datatype: i2
     scale_factor: 0.000001
 

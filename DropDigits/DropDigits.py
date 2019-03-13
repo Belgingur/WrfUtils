@@ -55,7 +55,7 @@ class Override(object):
         if self.add_offset != 0 and self.add_offset is not None:
             s += '{:s}{:g}'.format('+' if self.add_offset >= 0 else '', self.add_offset)
         # if self.range_min is not None:
-        #    s += ' : {:g} .. {:g}'.format(self.range_min, self.range_max)
+        #    s += ' : {:g} … {:g}'.format(self.range_min, self.range_max)
         return s
 
 
@@ -165,7 +165,7 @@ def create_output_variables(
         expensive = len(in_var_0.dimensions) >= 4 and data_type in LARGE_TYPES and override.is_default
         LOG.log(
             logging.WARNING if expensive else logging.INFO,
-            '    %- 10s %- 10s %s..%s [%s]',
+            '    %- 10s %- 10s %s … %s [%s]',
             var_name, override, override.range_min, override.range_max, dims_string
         )
         if expensive:
@@ -437,7 +437,7 @@ def process_file(
                     sf = override.scale_factor or 0  # Allow overlap of 1 scale factor to be truncated away
                     if chunk_min < override.range_min - sf or chunk_max > override.range_max + sf:
                         LOG.error(
-                            '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',
+                            '%s[%s…%s] values are %g … %g outside valid range %g … %g for %s',
                             in_var.name, c_start, c_end,
                             chunk_min, chunk_max,
                             override.range_min, override.range_max,
