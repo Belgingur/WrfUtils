@@ -61,11 +61,13 @@ TYPE_RANGE: Dict[Union[str, None], Tuple[int, int]] = dict(
 TYPE_RANGE[None] = None
 
 # Names of types which are no smaller than the default f4
-POINTLESS_TYPES = {
-    'u4', 'u8',
-    'i4', 'i8',
-    'f8',
-}
+POINTLESS_TYPES = {'u4', 'u8', 'i4', 'i8', 'f8', }
+
+# Names of types which are not supported by NETCDF4_CLASSIC
+UNSUPPORTED_TYPES = {'u1', 'u2', 'u4', 'u8'}
+
+# Types to avoid in high-dimension variables
+LARGE_TYPES = POINTLESS_TYPES.union({'f4', 'float32'})
 
 
 def memoize(f):

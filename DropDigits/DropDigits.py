@@ -11,7 +11,7 @@ import sys
 import time
 from datetime import datetime
 from math import log10, ceil
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 from typing import Union
 
 import numpy as np
@@ -19,7 +19,7 @@ import yaml
 from netCDF4 import Dataset, Variable, MFDataset
 
 from utils import out_file_name, setup_logging, read_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES
+    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES, UNSUPPORTED_TYPES, LARGE_TYPES
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
@@ -27,6 +27,7 @@ LOG = logging.getLogger('belgingur.drop_digits')
 class Override(object):
     def __init__(self, datatype: str = None, scale_factor: float = None, add_offset: float = None):
         super(Override, self).__init__()
+        self.is_default = False
         self.add_offset = add_offset
         self.scale_factor = scale_factor
         self.datatype = datatype  # name must match Variable.datatype
@@ -101,11 +102,14 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
                 spec = specs[spec[1:]]
             override = Override(**spec)
             overrides[var_name] = override
-            if override.data_type in POINTLESS_TYPES:
-                LOG.warning('%s is configured for data type %s which is no smaller than the default f4 and may lose precision', var_name, override.data_type)
+            if override.datatype in POINTLESS_TYPES:
+                LOG.warning('%s uses type %s which is as just large as f4', var_name, override.datatype)
+            if override.datatype in UNSUPPORTED_TYPES:
+                LOG.warning('%s uses type %s which is not supported by NETCDF4_CLASSIC', var_name, override.datatype)
         except:
             LOG.error('Failed to read override for %s', var_name)
             raise
+    overrides['default'].is_default = True
     return overrides
 
 
@@ -146,7 +150,8 @@ def resolve_input_variables(in_ds: Dataset, config: Dict[str, Any]) -> List[str]
 def create_output_variables(
         in_ds_0: Dataset, out_ds: Dataset,
         var_names: List[str], overrides: Dict[str, Override],
-        comp_level: int, chunking: bool, max_t: int, max_k: int
+        comp_level: int, chunking: bool, max_t: int, max_k: int,
+        high_dimensional_floats: Set[str]
 ) -> List[Variable]:
     LOG.info('Create output variables with overrides:')
     out_vars = []
@@ -154,9 +159,18 @@ def create_output_variables(
     for var_name in var_names:
         in_var_0 = in_ds_0.variables[var_name]
         override = overrides.get(var_name, default_override)
-        LOG.info('    %- 10s %- 10s %s..%s', var_name, override, override.range_min, override.range_max)
-
         data_type = value_with_override('datatype', override, in_var_0)
+        dims_string = ','.join(in_var_0.dimensions)
+
+        expensive = len(in_var_0.dimensions) >= 4 and data_type in LARGE_TYPES and override.is_default
+        LOG.log(
+            logging.WARNING if expensive else logging.INFO,
+            '    %- 10s %- 10s %s..%s [%s]',
+            var_name, override, override.range_min, override.range_max, dims_string
+        )
+        if expensive:
+            high_dimensional_floats.add(f'{var_name:10s} {data_type:8s} [{dims_string}]')
+
         chunk_sizes = None
         if chunking:
             chunk_sizes = pick_chunk_sizes(out_ds, in_var_0.dimensions, max_t=max_t, max_k=max_k)
@@ -366,18 +380,20 @@ def process_file(
     create_output_dimensions(in_ds, var_names, out_ds, margin, max_t, max_k)
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
+    high_dimensional_floats: Set[str] = set()
     out_vars = create_output_variables(
         in_ds_0, out_ds,
         var_names, overrides,
         comp_level, chunking,
-        max_t, max_k
+        max_t, max_k,
+        high_dimensional_floats
     )
 
     LOG.info('Copying data in chunks of %s time steps', CHUNK_SIZE_TIME)
     for c_start in range(spinup, len(dates), CHUNK_SIZE_TIME):
         c_end = min(c_start + CHUNK_SIZE_TIME, len(dates))
         LOG.info('Chunk[%s:%s]: %s - %s', c_start, c_end, dates[c_start], dates[c_end - 1])
-        LOG.info('    Variable            Min          Max  Input Dimensions')
+        LOG.info('    Variable            Min          Max')
         if c_start > spinup and c_end - c_start != CHUNK_SIZE_TIME:
             LOG.info('Last chunk is short')
 
@@ -412,11 +428,11 @@ def process_file(
             override = overrides.get(var_name) or overrides.get('default')
             if in_var_0.datatype == '|S1':
                 # Text data
-                LOG.info('    {:10}          N/A          N/A  {}'.format(var_name, dim_str))
+                LOG.info(f'    {var_name:10}          N/A          N/A')
             else:
                 # Numeric data
                 chunk_min, chunk_max = np.min(in_chunk), np.max(in_chunk)
-                LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(var_name, chunk_min, chunk_max, dim_str))
+                LOG.info(f'    {var_name:10} {chunk_min:12,.2f} {chunk_max:12,.2f}')
                 if override.range_min is not None and override.range_max is not None:
                     sf = override.scale_factor or 0  # Allow overlap of 1 scale factor to be truncated away
                     if chunk_min < override.range_min - sf or chunk_max > override.range_max + sf:
@@ -433,6 +449,15 @@ def process_file(
     in_ds.close()
     if in_ds_0 is not in_ds:
         in_ds_0.close()
+
+    if high_dimensional_floats:
+        LOG.warning('')
+        LOG.warning('Implicit expensive high-dimensional variables encountered:')
+        for var_name in sorted(high_dimensional_floats):
+            LOG.warning('  %s', var_name)
+        LOG.warning('Consider converting them to i2 or explicitly configure them for f4')
+        LOG.warning('')
+
     return errors
 
 
