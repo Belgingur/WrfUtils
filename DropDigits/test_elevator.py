@@ -159,9 +159,9 @@ def test_create_output_variables_mixed():
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
         call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('wind_speed', np.uint16, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('wind_speed', np.int16, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('wind_dir', np.uint16, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('wind_dir', np.int16, chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
