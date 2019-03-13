@@ -278,11 +278,36 @@ def V_true(U, V, COSALPHA, SINALPHA):
 
 
 @derived(
+    description='10m x-wind component in earth-coordinates',
+    units='m s-1',
+)
+def U10_true(U10, V10, COSALPHA, SINALPHA):
+    return COSALPHA * U10 - SINALPHA * V10
+
+
+@derived(
+    description='10m y-wind component in earth-coordinates',
+    units='m s-1',
+)
+def V10_true(U10, V10, COSALPHA, SINALPHA):
+    return SINALPHA * U10 + COSALPHA * V10
+
+
+@derived(
     units='m s-1',
     datatype=np.uint16,
 )
 def wind_speed(U, V):
     return np.sqrt(U ** 2 + V ** 2)
+
+
+@derived(
+    units='m s-1',
+    datatype=np.uint16,
+)
+def wind_speed_10(U10, V10):
+    return np.sqrt(U10 ** 2 + V10 ** 2)
+
 
 @derived(
     description='wind direction',
@@ -291,6 +316,15 @@ def wind_speed(U, V):
 )
 def wind_dir(U_true, V_true):
     return (270 - np.degrees(np.arctan2(-1*V_true, -1*U_true))) % 360
+
+
+@derived(
+    description='wind direction',
+    units='degrees',
+    datatype=np.uint16,
+)
+def wind_dir_10(U10_true, V10_true):
+    return (270 - np.degrees(np.arctan2(-1 * V10_true, -1 * U10_true))) % 360
 
 
 @derived(
