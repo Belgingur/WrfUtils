@@ -111,17 +111,18 @@ overrides:
     datatype: i2
     scale_factor: 0.01
 
-  #PH:
-  #  datatype: i4
-  #  scale_factor: 0.01          
+  PH:  # +-8192
+    datatype: i2
+    scale_factor: 0.25
 
-  #PHB: 
-  #  datatype: i4
-  #  scale_factor: 0.01          
+  PHB:  # 0 … 327680
+    datatype: i2
+    add_offset: -163840
+    scale_factor: 5  # 0.05 hPa
 
-  #T: 
-  #  datatype: i4
-  #  scale_factor: 0.01
+  T:  # +-327.68
+    datatype: i2
+    scale_factor: 0.01
 
   TKE:  # 0 … 65.535
     datatype: i2
@@ -133,18 +134,19 @@ overrides:
     add_offset: -32.768
     scale_factor: 0.001
 
-  #P:
-  #  datatype: i4
-  #  scale_factor: 0.01          
+  P:  # +-6553.6
+    datatype: i2
+    scale_factor: 0.2  # 0.002 hPa
 
   ALT:  # 0 … 65.535
     datatype: i2
     add_offset:  -32.768
     scale_factor: 0.001
 
-  #PB: 
-  #  datatype: u4
-  #  scale_factor: 0.01          
+  PB:  # 0 … 131072
+    datatype: i2
+    add_offset: -65536
+    scale_factor: 2
 
   #Q2: 
   #  datatype: i4
@@ -199,29 +201,35 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.01          
 
-  #QVAPOR: 
-  #  datatype: i4
-  #  scale_factor: 0.000000001   
+  QVAPOR:  # 0 … 0.032768
+    datatype: i2
+    add_offset: -0.016384
+    scale_factor: 0.000002
 
-  #QSNOW: 
-  #  datatype: i4
-  #  scale_factor: 0.000000001   
+  QSNOW:  # 0 … 0.032768
+    datatype: i2
+    add_offset: -0.016384
+    scale_factor: 0.000002
 
-  #QRAIN: 
-  #  datatype: i4
-  #  scale_factor: 0.000000001   
+  QRAIN:  # 0 … 0.032768
+    datatype: i2
+    add_offset: -0.016384
+    scale_factor: 0.000002
 
-  #QCLOUD: 
-  #  datatype: i4
-  #  scale_factor: 0.000000001   
+  QCLOUD:  # 0 … 0.032768
+    datatype: i2
+    add_offset: -0.016384
+    scale_factor: 0.000002
 
-  #QGRAUP: 
-  #  datatype: i4
-  #  scale_factor: 0.000000001   
+  QGRAUP:  # 0 … 0.032768
+    datatype: i2
+    add_offset: -0.016384
+    scale_factor: 0.000002
 
-  #QICE: 
-  #  datatype: i4
-  #  scale_factor: 0.000000001   
+  QICE:  # 0 … 0.032768
+    datatype: i2
+    add_offset: -0.016384
+    scale_factor: 0.000002
 
   TSLB:  # 0 … 655.35
     datatype: i2
