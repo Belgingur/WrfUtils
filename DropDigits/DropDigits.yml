@@ -171,9 +171,10 @@ overrides:
     add_offset:  -327.68
     scale_factor: 0.01
 
-  #PSFC:
-  #  datatype: u4
-  #  scale_factor: 0.01
+  PSFC:  # 0 … 131072
+    datatype: i2
+    add_offset: -65536
+    scale_factor: 2  # 0.02 hPa
 
   U10:  # ±327.68
     datatype: i2
@@ -197,9 +198,10 @@ overrides:
     add_offset:  -327.68
     scale_factor: 0.01
 
-  #MSLP: 
-  #  datatype: u4
-  #  scale_factor: 0.01          
+  MSLP:  # 0 … 131072
+    datatype: i2
+    add_offset: -65536
+    scale_factor: 2  # 0.02 hPa
 
   QVAPOR:  # 0 … 0.032768
     datatype: i2
