@@ -1,0 +1,3 @@
+# Set up python environment for this module
+
+. activate DropDigits || echo -e 'Please install miniconda3 and then create environment with:\n    conda env create -f environment.yml'
