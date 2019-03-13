@@ -4,9 +4,10 @@ from types import FunctionType
 from unittest.mock import MagicMock, call, patch
 
 import numpy as np
+import pytest
 
 from Elevator import DIM_NAMES_GEO
-from calculators import CALCULATORS, ChunkCalculator, derived
+from calculators import CALCULATORS, ChunkCalculator, derived, wind_dir, wind_dir_10
 from utils import DIM_BOTTOM_TOP
 from utils_testing import mock_dataset_meta, slice_call
 
@@ -253,3 +254,33 @@ def test_static_cosalpha_sinalpha():
     assert geo_ds.variables['COSALPHA'].__getitem__.call_args_list == [slice_call[0, ..., 10:-10, 10:-10]]
     c('SINALPHA')
     assert geo_ds.variables['SINALPHA'].__getitem__.call_args_list == [slice_call[0, ..., 10:-10, 10:-10]]
+
+
+@pytest.mark.parametrize('v, u, ex_dir', [
+    (-1, +0, 000.),
+    (+0, -1, 090.),
+    (+1, +0, 180.),
+    (+0, +1, 270.),
+    (+1, +1, 225.),
+    (+1, -1, 135.),
+    (-1, +1, 315.),
+    (-1, -1, 045.),
+])
+def test_wind_dir(u: float, v: float, ex_dir: float):
+    ac_dir = wind_dir(u, v)
+    assert ac_dir == ex_dir
+
+
+@pytest.mark.parametrize('v, u, ex_dir', [
+    (-1, +0, 000.),
+    (+0, -1, 090.),
+    (+1, +0, 180.),
+    (+0, +1, 270.),
+    (+1, +1, 225.),
+    (+1, -1, 135.),
+    (-1, +1, 315.),
+    (-1, -1, 045.),
+])
+def test_wind_dir_10(u: float, v: float, ex_dir: float):
+    ac_dir = wind_dir_10(u, v)
+    assert ac_dir == ex_dir

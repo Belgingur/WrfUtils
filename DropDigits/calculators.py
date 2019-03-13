@@ -317,7 +317,7 @@ def wind_speed_10(U10, V10):
     scale_factor=0.1,  # ±3276.8
 )
 def wind_dir(U_true, V_true):
-    return (270 - np.degrees(np.arctan2(-1*V_true, -1*U_true))) % 360
+    return (270 - np.degrees(np.arctan2(V_true, U_true))) % 360
 
 
 @derived(
@@ -327,7 +327,7 @@ def wind_dir(U_true, V_true):
     scale_factor=0.1,  # ±3276.8
 )
 def wind_dir_10(U10_true, V10_true):
-    return (270 - np.degrees(np.arctan2(-1 * V10_true, -1 * U10_true))) % 360
+    return (270 - np.degrees(np.arctan2(V10_true, U10_true))) % 360
 
 
 @derived(
