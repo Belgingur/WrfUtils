@@ -29,7 +29,7 @@ class Override(object):
         super(Override, self).__init__()
         self.add_offset = add_offset
         self.scale_factor = scale_factor
-        self.data_type = datatype
+        self.datatype = datatype  # name must match Variable.datatype
 
         type_range = TYPE_RANGE[datatype]
         if type_range:
@@ -42,13 +42,13 @@ class Override(object):
             self.range_max = None
 
         # Calculate least significant digit for int/fixed point variables
-        if self.data_type and self.data_type[0] in ('u', 'i') and self.scale_factor is not None:
+        if self.datatype and self.datatype[0] in ('u', 'i') and self.scale_factor is not None:
             self.least_significant_digit = ceil(-log10(self.scale_factor))
         else:
             self.least_significant_digit = None
 
     def __repr__(self):
-        s = self.data_type or 'unchanged'
+        s = self.datatype or 'unchanged'
         if self.scale_factor != 1 and self.scale_factor is not None:
             s += '*{:g}'.format(self.scale_factor)
         if self.add_offset != 0 and self.add_offset is not None:
