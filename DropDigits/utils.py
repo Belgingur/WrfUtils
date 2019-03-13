@@ -60,6 +60,13 @@ TYPE_RANGE: Dict[Union[str, None], Tuple[int, int]] = dict(
 )
 TYPE_RANGE[None] = None
 
+# Names of types which are no smaller than the default f4
+POINTLESS_TYPES = {
+    'u4', 'u8',
+    'i4', 'i8',
+    'f8',
+}
+
 
 def memoize(f):
     """ Very simple memoization decorator """

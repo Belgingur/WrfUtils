@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# encoding: utf-8
+#!/usr/bin/env python3
 
 """
 Shrink wrfout files by reducing the number of digits for variables.
@@ -20,7 +19,7 @@ import yaml
 from netCDF4 import Dataset, Variable, MFDataset
 
 from utils import out_file_name, setup_logging, read_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    value_with_override, override_field, create_output_dataset
+    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
@@ -100,7 +99,10 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
         try:
             if isinstance(spec, str) and spec[0] == '@':
                 spec = specs[spec[1:]]
-            overrides[var_name] = Override(**spec)
+            override = Override(**spec)
+            overrides[var_name] = override
+            if override.data_type in POINTLESS_TYPES:
+                LOG.warning('%s is configured for data type %s which is no smaller than the default f4 and may lose precision', var_name, override.data_type)
         except:
             LOG.error('Failed to read override for %s', var_name)
             raise
@@ -416,7 +418,7 @@ def process_file(
                 chunk_min, chunk_max = np.min(in_chunk), np.max(in_chunk)
                 LOG.info('    {:10} {:12,.2f} {:12,.2f}  {}'.format(var_name, chunk_min, chunk_max, dim_str))
                 if override.range_min is not None and override.range_max is not None:
-                    sf = override.scale_factor  # Allow overlap of 1 scale factor to be truncated away
+                    sf = override.scale_factor or 0  # Allow overlap of 1 scale factor to be truncated away
                     if chunk_min < override.range_min - sf or chunk_max > override.range_max + sf:
                         LOG.error(
                             '%s[%s..%s] values are %g .. %g outside valid range %g .. %g for %s',

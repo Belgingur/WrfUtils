@@ -151,7 +151,7 @@ class ChunkCalculator(object):
             ipor = None
 
         # Build indices and slices to read exactly what we need from the variable
-        slices = []  # type: List[Union[None, int, slice]]
+        slices: List[Union[None, int, slice]] = []
 
         # Statics get a single time step. Others get the current chunk of time
         if var.name in self.static_vars:
