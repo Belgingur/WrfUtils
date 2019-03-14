@@ -12,6 +12,22 @@ output_filename: '{path}/{basename}_reduced.nc4'
 custom_attributes:
   institution: Belgingur
 
+# Skip this many hours from the start of the input files
+spinup_hours: 0
+
+# Remove this many cells from the edges of the input files.
+margin_cells: 10
+
+# Store this many sigma levels for 3D variables, starting from bottom.
+# Comment out to store all sigma levels
+#sigma_limit: 5
+
+# Whether to apply chunking to the variables of the output file.
+chunking: True
+
+# Compression level for output file. 0 to disable, values 1-9 are passed to zlib
+complevel: 3
+
 # If default_include is False, include only these variables
 include:
   - Times
@@ -73,15 +89,6 @@ overrides:
   #   u8 (64-bit unsigned integer)  0 … 1.844e19
   #   i8 (64-bit singed integer)    ± 9.223e18
   #   f8 (64-bit floating point)    ± 1.79e308
-
-  # By default just pass the variable through unchanged
-  default:
-    datatype: f4
-    scale_factor: 1
-    add_offset: 0
-
-  # Don't mess with Times
-  Times: {}
 
   #XLAT:
   #  datatype: i4
@@ -417,23 +424,3 @@ overrides:
     datatype: i2
     add_offset:  -327.68
     scale_factor: 0.01
-
-  times: {}  #    1.76684e+07 … 1.76685e+07
-  ws: {}  #    0 … 100
-  wd: {}  #    0 … 260
-
-# Skip this many hours from the start of the input files
-spinup_hours: 0
-
-# Remove this many cells from the edges of the input files.
-margin_cells: 10
-
-# Store this many sigma levels for 3D variables, starting from bottom.
-# Comment out to store all sigma levels
-#sigma_limit: 5
-
-# Whether to apply chunking to the variables of the output file.
-chunking: True
-
-# Compression level for output file. 0 to disable, values 1-9 are passed to zlib
-complevel: 3

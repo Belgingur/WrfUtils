@@ -43,6 +43,21 @@ CHUNK_SIZES: List[Tuple[int, ...]] = [
     (CHUNK_SIZE_TIME, 10, 16, 16)
 ]
 
+SHORT_NAMES = dict(
+    uint8='u1',
+    uint16='u2',
+    uint32='u4',
+    uint64='u8',
+
+    int8='i1',
+    int16='i2',
+    int32='i4',
+    int64='i8',
+
+    float32='f4',
+    float64='f8',
+)
+
 # Range of values allowed by each netcdf type
 TYPE_RANGE: Dict[Union[str, None], Tuple[int, int]] = dict(
     u1=(0, 2 ** 8 - 1),
@@ -56,7 +71,9 @@ TYPE_RANGE: Dict[Union[str, None], Tuple[int, int]] = dict(
     i8=(-2 ** 63, 2 ** 63 - 1),
 
     f4=(-3.4e38, +3.4e38),
-    f8=(-1.79e308, +1.79e308)
+    f8=(-1.79e308, +1.79e308),
+
+    S1=None,
 )
 TYPE_RANGE[None] = None
 

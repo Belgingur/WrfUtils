@@ -9,6 +9,7 @@ import logging.config
 import os
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from math import log10, ceil
 from typing import List, Dict, Any, Set
@@ -19,23 +20,29 @@ import yaml
 from netCDF4 import Dataset, Variable, MFDataset
 
 from utils import out_file_name, setup_logging, read_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES, UNSUPPORTED_TYPES, LARGE_TYPES
+    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES, UNSUPPORTED_TYPES, LARGE_TYPES, SHORT_NAMES
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
 
+@dataclass
 class Override(object):
-    def __init__(self, datatype: str = None, scale_factor: float = None, add_offset: float = None):
-        super(Override, self).__init__()
-        self.is_default = False
-        self.add_offset = add_offset
-        self.scale_factor = scale_factor
-        self.datatype = datatype  # name must match Variable.datatype
+    datatype: str = None  # name must match Variable.datatype
+    add_offset: float = None
+    scale_factor: float = None
+    is_default: bool = False
 
-        type_range = TYPE_RANGE[datatype]
+    DEFAULT = None
+
+    def __post_init__(self):
+        if self.datatype is not None:
+            self.datatype = str(self.datatype)
+        self.datatype = SHORT_NAMES.get(self.datatype, self.datatype)
+        type_range = TYPE_RANGE.get(self.datatype)
+
         if type_range:
-            sf = 1 if scale_factor is None else scale_factor
-            ao = 0 if add_offset is None else add_offset
+            sf = 1 if self.scale_factor is None else self.scale_factor
+            ao = 0 if self.add_offset is None else self.add_offset
             self.range_min = type_range[0] * sf - ao
             self.range_max = type_range[1] * sf - ao
         else:
@@ -57,6 +64,18 @@ class Override(object):
         # if self.range_min is not None:
         #    s += ' : {:g} … {:g}'.format(self.range_min, self.range_max)
         return s
+
+    def of(self, other: Variable):
+        return Override(
+            datatype=value_with_override('datatype', self, other),
+            add_offset=value_with_override('add_offset', self, other),
+            scale_factor=value_with_override('scale_factor', self, other),
+            is_default=self.is_default
+        )
+
+
+Override.DEFAULT = Override(is_default=True)
+""" by default just pass variables through """
 
 
 def configure() -> (argparse.Namespace, dict):
@@ -109,7 +128,6 @@ def build_overrides(config: Dict) -> Dict[str, Override]:
         except:
             LOG.error('Failed to read override for %s', var_name)
             raise
-    overrides['default'].is_default = True
     return overrides
 
 
@@ -155,27 +173,26 @@ def create_output_variables(
 ) -> List[Variable]:
     LOG.info('Create output variables with overrides:')
     out_vars = []
-    default_override = overrides.get('default')
     for var_name in var_names:
         in_var_0 = in_ds_0.variables[var_name]
-        override = overrides.get(var_name, default_override)
-        data_type = value_with_override('datatype', override, in_var_0)
+        override = overrides.get(var_name, Override.DEFAULT)
+        combined = override.of(in_var_0)
         dims_string = ','.join(in_var_0.dimensions)
 
-        expensive = len(in_var_0.dimensions) >= 4 and data_type in LARGE_TYPES and override.is_default
+        expensive = (len(in_var_0.dimensions) >= 4) and (combined.datatype in LARGE_TYPES) and (combined.is_default)
         LOG.log(
             logging.WARNING if expensive else logging.INFO,
             '    %- 10s %- 10s %s … %s [%s]',
-            var_name, override, override.range_min, override.range_max, dims_string
+            var_name, combined, combined.range_min, combined.range_max, dims_string
         )
         if expensive:
-            high_dimensional_floats.add(f'{var_name:10s} {data_type:8s} [{dims_string}]')
+            high_dimensional_floats.add(f'{var_name:10s} {combined.datatype:8s} [{dims_string}]')
 
         chunk_sizes = None
         if chunking:
             chunk_sizes = pick_chunk_sizes(out_ds, in_var_0.dimensions, max_t=max_t, max_k=max_k)
         out_var = out_ds.createVariable(var_name,
-                                        data_type,
+                                        combined.datatype,
                                         dimensions=in_var_0.dimensions,
                                         zlib=comp_level > 0,
                                         complevel=comp_level,
@@ -185,7 +202,7 @@ def create_output_variables(
                 'description', 'least_significant_digit', 'scale_factor', 'add_offset',
                 'FieldType', 'MemoryOrder', 'units', 'stagger', 'coordinates',
         ):
-            override_field(out_var, field, override, in_var_0)
+            override_field(out_var, field, combined, in_var_0)
         out_vars.append(out_var)
 
     LOG.debug('Converted variables: \n%s', '\n'.join(map(str, out_vars)))
@@ -424,8 +441,7 @@ def process_file(
             out_ds.sync()
 
             # Log variable dimensions and sanity check
-            dim_str = ', '.join(map(lambda x: '%s[%s]' % x, zip(in_var.dimensions, in_var.shape)))
-            override = overrides.get(var_name) or overrides.get('default')
+            override = overrides.get(var_name, Override.DEFAULT)
             if in_var_0.datatype == '|S1':
                 # Text data
                 LOG.info(f'    {var_name:10}          N/A          N/A')
