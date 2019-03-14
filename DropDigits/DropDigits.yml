@@ -118,14 +118,11 @@ overrides:
     datatype: i2
     scale_factor: 0.01
 
-  PH:  # ±8192
-    datatype: i2
-    scale_factor: 0.25
+  PH:  # ±30000.00
+    datatype: f4  # Explicitly pass through
 
-  PHB:  # 0 … 327680
-    datatype: i2
-    add_offset: -163840
-    scale_factor: 5  # 0.05 hPa
+  PHB:  # ±30000.00
+    datatype: f4  # Explicitly pass through
 
   T:  # ±327.68
     datatype: i2
@@ -210,35 +207,35 @@ overrides:
     add_offset: -65536
     scale_factor: 2  # 0.02 hPa
 
-  QVAPOR:  # 0 … 0.032768
+  QVAPOR:  # 0 … 0.0524288
     datatype: i2
-    add_offset: -0.016384
-    scale_factor: 0.000002
+    add_offset: -0.0262144
+    scale_factor: 0.000008
 
-  QSNOW:  # 0 … 0.032768
+  QSNOW:  # 0 … 0.0524288
     datatype: i2
-    add_offset: -0.016384
-    scale_factor: 0.000002
+    add_offset: -0.0262144
+    scale_factor: 0.000008
 
-  QRAIN:  # 0 … 0.032768
+  QRAIN:  # 0 … 0.0524288
     datatype: i2
-    add_offset: -0.016384
-    scale_factor: 0.000002
+    add_offset: -0.0262144
+    scale_factor: 0.000008
 
-  QCLOUD:  # 0 … 0.032768
+  QCLOUD:  # 0 … 0.0524288
     datatype: i2
-    add_offset: -0.016384
-    scale_factor: 0.000002
+    add_offset: -0.0262144
+    scale_factor: 0.000008
 
-  QGRAUP:  # 0 … 0.032768
+  QGRAUP:  # 0 … 0.0524288
     datatype: i2
-    add_offset: -0.016384
-    scale_factor: 0.000002
+    add_offset: -0.0262144
+    scale_factor: 0.000008
 
-  QICE:  # 0 … 0.032768
+  QICE:  # 0 … 0.0524288
     datatype: i2
-    add_offset: -0.016384
-    scale_factor: 0.000002
+    add_offset: -0.0262144
+    scale_factor: 0.000008
 
   TSLB:  # 0 … 655.35
     datatype: i2
@@ -308,14 +305,11 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.1           
 
-  REGIME:  # 0 … 6.5535
-    datatype: i2
-    add_offset:  -3.2768
-    scale_factor: 0.0001
-
-  SNOWC: # flag
+  REGIME:  # flag 1,2,3,4
     datatype: i1
-    scale_factor: 0.01
+
+  SNOWC: # flag 0,1
+    datatype: i1
 
   SR:  # ±1.28
     datatype: i1
@@ -379,25 +373,25 @@ overrides:
   #  datatype: u4
   #  scale_factor: 0.1           
 
-  CWM:  # 0 … 0.065535
-    datatype: i2
-    add_offset:  -0.032768
-    scale_factor: 0.000001
+  #CWM:  # 0 … 0.065535
+  #  datatype: i2
+  #  add_offset:  -0.032768
+  #  scale_factor: 0.000001
 
-  F_ICE_PHY:  # 0 … 6.5535
-    datatype: i2
-    add_offset:  -3.2768
-    scale_factor: 0.0001
+  #F_ICE_PHY:  # 0 … 6.5535
+  #  datatype: i2
+  #  add_offset:  -3.2768
+  #  scale_factor: 0.0001
 
-  F_RAIN_PHY:  # 0 … 6.5535
-    datatype: i2
-    add_offset:  -3.2768
-    scale_factor: 0.0001
+  #F_RAIN_PHY:  # 0 … 6.5535
+  #  datatype: i2
+  #  add_offset:  -3.2768
+  #  scale_factor: 0.0001
 
-  F_RIMEF_PHY:  # 0 … 65.535
-    datatype: i2
-    add_offset:  -32.768
-    scale_factor: 0.001
+  #F_RIMEF_PHY:  # 0 … 65.535
+  #  datatype: i2
+  #  add_offset:  -32.768
+  #  scale_factor: 0.001
 
   P_TOP:  # 0 … 65535
     datatype: i2
