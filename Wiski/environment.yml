@@ -9,20 +9,18 @@
 name: Wiski
 dependencies:
   # Basic python
-  - python=2.7.*
+  - python=3.7.*
+  - ipython
   - pyyaml=3.*
 
   # Scientific
-  - numpy=1.9.*
-  - scipy=0.15.*
-  - netcdf4=1.1.*
-  - matplotlib=1.4.*
+  - numpy=1.16.*
+  - scipy=1.2.*
+  - netcdf4=1.4.*
+  - matplotlib=3.0.*
 
   # Geometry and geography
-  - basemap=1.0.*
-  - shapely=1.5.*
-  - gdal=1.11.*
-
-  # Missing gdal dependency
-  - krb5=1.13.*
-  - proj4=4.9.*
+  - basemap=1.2.*
+  - basemap-data-hires=1.2.*
+  - shapely=1.6.*
+  - gdal=2.3.*

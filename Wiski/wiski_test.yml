@@ -3,27 +3,28 @@ geofile: 'wrfout_test/geo_em.d01.nc'
 sub_sampling: 3
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
+
 shape_files:
   shapefiles/Bla_isn93.shp:
-   - blondulon
+    - blondulon
   shapefiles/THJ_KVI.shp:
-   - kvislarveita
+    - kvislarveita
   shapefiles/Fljotsdalsstod_vatnasvid.shp:
-  - ufsarlon
-  - halslon
-  - hraunaveita
-  - hraunaveita
-  - hraunaveita
-  - hraunaveita
+    - ufsarlon
+    - halslon
+    - hraunaveita
+    - hraunaveita
+    - hraunaveita
+    - hraunaveita
   shapefiles/Thj_Sul_Bud.shp:
-   - sultartangi
-   - budarhals
+    - sultartangi
+    - budarhals
   shapefiles/THJ_HAG.shp:
-  - hagongulon
+    - hagongulon
   shapefiles/TU_SIG.shp:
-  - tungnaa
-  - thorisvatn
-  - tungnaa
+    - tungnaa
+    - thorisvatn
+    - tungnaa
 
 # Split each region into height bands at this interval [m]
 height_resolution: 100
@@ -34,7 +35,7 @@ region_total_key_pattern: '{region}:{offset[0]}_{offset[1]}'
 # Pattern to create key for region/height combination
 region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offset[1]}'
 
-# make_masks writes weight grids to this file and wisky.py reads them back
+# make_masks writes weight grids to this file and wiski.py reads them back
 weight_file: 'weights_test.npz'
 
 # Plot regions to these files. Ges key from regional_total_key_pattern
@@ -43,12 +44,11 @@ plot_file_pattern: 'plots_test/{region_key}.svg'
 # Pattern to construct title for plots
 plot_title_pattern: '{region}'
 
-
 # How many steps to skip from beginning of wrfout file.
 spinup_steps: 3
 
 # Pattern for output file-names
-output_file_pattern: 'wrf_wiski_test_{start_time:%Y-%m-%dT%H:%M}-{perturb_pretty}.gz'
+output_file_pattern: 'wrf_lvc_{start_time:%Y-%m-%dT%H:%M}-{perturb_pretty}.gz'
 
 # Pattern for each line in the output data file
 output_line_pattern: 'wrf_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'
@@ -56,15 +56,15 @@ output_line_pattern: 'wrf_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'
 # Variables to write to file for each step. They are either read directly from
 # wrfout file or returned by a load_data_VARNAM function.
 variables:
-- T2        # [°C]    Hiti í 2 metra hæð (e. temperature at 2m)
-- WSPEED    # [m/s]   Vindhraði ( sqrt(U10²+V10²) )
-- PSFC      # [Pa]    Loftþrýstingur við yfirborð (e. surface pressure)
-- GLW       # [W/m²]  Langbylgjuinngeislun við yfirborð (e. downward long wave flux at ground surface)
-- SWDOWN    # [W/m²]  Stuttbylgjuinngeislun við yfirborð (e. downward short wave flux at ground surface)
-- SNOW      # [kg/m²] Uppsafnaður snjór (SNOW)
+  - T2        # [°C]    Hiti í 2 metra hæð (e. temperature at 2m)
+  - WSPEED    # [m/s]   Vindhraði ( sqrt(U10²+V10²) )
+  - PSFC      # [Pa]    Loftþrýstingur við yfirborð (e. surface pressure)
+  - GLW       # [W/m²]  Langbylgjuinngeislun við yfirborð (e. downward long wave flux at ground surface)
+  - SWDOWN    # [W/m²]  Stuttbylgjuinngeislun við yfirborð (e. downward short wave flux at ground surface)
+  - SNOW      # [kg/m²] Uppsafnaður snjór (SNOW)
 
-# All precipitation values are per step. Summing over time gives accumulated precipitation.
-- PRECIP    # [kg/m²] Úrkoma (regn,slydda,snjór)
-- RAINFALL  # [kg/m²] Úrkoma sem fellur sem regn (PRECIP | SR<0.4)
-- SLEETFALL # [kg/m²] Úrkoma sem fellur hvorki sem regn né snjór (PRECIP | 0.4<=SR<0.7)
-- SNOWFALL  # [kg/m²] Úrkoma sem fellur sem snjór (PRECIP | 0.7<=SR)
+  # All precipitation values are per step. Summing over time gives accumulated precipitation.
+  - PRECIP    # [kg/m²] Úrkoma (regn,slydda,snjór)
+  - RAINFALL  # [kg/m²] Úrkoma sem fellur sem regn (PRECIP | SR<0.4)
+  - SLEETFALL # [kg/m²] Úrkoma sem fellur hvorki sem regn né snjór (PRECIP | 0.4<=SR<0.7)
+  - SNOWFALL  # [kg/m²] Úrkoma sem fellur sem snjór (PRECIP | 0.7<=SR)

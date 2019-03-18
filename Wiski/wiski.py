@@ -1,22 +1,24 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 
 """
 Builds data files for wiski by applying masks from make_masks wrf model output
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import annotations
 
 import argparse
+import re
 import sys
 from datetime import datetime
 from gzip import GzipFile
 from itertools import groupby
+from typing import Tuple, Dict, List, Iterable
 
-import netCDF4
+import netCDF4 as nc
 import numpy as np
-import re
 import yaml
+from pytz import UTC
 
 # SETUP
 
@@ -45,16 +47,16 @@ def RegexMatchingArg(pattern, description=None):
     return Type
 
 
-def read_config():
+def read_config() -> Tuple[Dict, List[str], List[str], bool]:
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
         epilog=None
     )
-    parser.add_argument('--verbose', default=False, action='store_true',
+    parser.add_argument('-v', '--verbose', default=False, action='store_true',
                         help='Write more progress data')
-    parser.add_argument('--config', default='wiski.yml',
+    parser.add_argument('-c', '--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
-    parser.add_argument('--perturb-forecast', default='N0E0',
+    parser.add_argument('-p', '--perturb-forecast', default='N0E0',
                         type=RegexMatchingArg('[NS][0-9]+[WE][0-9]+(,[NS][0-9]+[WE][0-9]+)*',
                                               '%s is not a comma-separated list of [NS]number[EW]number values'),
                         help='Move weight grid by this many cells within the input wrfout files. '
@@ -73,6 +75,10 @@ def read_config():
     return config, perturb_pretty, args.wrfout, args.verbose
 
 
+def is_digit(c: str):
+    return c in '0123456789'
+
+
 def parse_perturb(perturb_pretties):
     """
     :param list[str] perturb_pretties:
@@ -80,7 +86,7 @@ def parse_perturb(perturb_pretties):
     """
     perturb_idxs = []
     for pp in perturb_pretties:
-        pp = tuple(''.join(x) for _, x in groupby(pp, key=unicode.isdigit))
+        pp = tuple(''.join(x) for _, x in groupby(pp, key=is_digit))
         perturb_idxs.append((
             int(pp[1]) if pp[0] == 'N' else -int(pp[1]),
             int(pp[3]) if pp[2] == 'E' else -int(pp[3])
@@ -98,7 +104,7 @@ def read_weights(weight_file, levels):
         total_weight = np.sum(weight_grid) / levels
         if ':' in key:
             key, offset = key.split(':')
-            offset = map(int, offset.split('_'))
+            offset = list(map(int, offset.split('_')))
             assert len(offset) == 2
         else:
             offset = (0, 0)
@@ -112,8 +118,16 @@ def read_weights(weight_file, levels):
 WRF_TIME_FORMAT = '%Y-%m-%d_%H:%M:%S'
 
 
-def parse_timestamp(t):
-    return datetime.strptime(t.tostring(), WRF_TIME_FORMAT)
+def parse_timestamp(b: Iterable[bytes]) -> datetime:
+    """ Parse a WRF time value """
+    return parse_wrf_time_string(b''.join(bb for bb in b).decode())
+
+
+def parse_wrf_time_string(s: str) -> datetime:
+    """ Parse a WRF time string """
+    d = datetime.strptime(s, '%Y-%m-%d_%H:%M:%S')
+    d = UTC.localize(d)
+    return d
 
 
 def read_timestamps(wrfout):
@@ -206,18 +220,18 @@ def rround(x, p):
 def main():
     config, perturb_pretties, wrfouts, verbose = read_config()
     perturb_idxs = parse_perturb(perturb_pretties)
-    levels = config['sub_sampling'] ** 2
+    levels: int = config['sub_sampling'] ** 2
     spinup_steps = int(config['spinup_steps'])
 
     region_keys_and_weights = read_weights(config['weight_file'], levels)
-    output_line_pattern = config['output_line_pattern']
-    output_file_pattern = config['output_file_pattern']
+    output_line_pattern: str = config['output_line_pattern']
+    output_file_pattern: str = config['output_file_pattern']
 
     for wrfout_name in wrfouts:
         print('Read', wrfout_name)
 
         for perturb_idx, perturb_pretty in zip(perturb_idxs, perturb_pretties):
-            with netCDF4.Dataset(wrfout_name) as wrfout:
+            with nc.Dataset(wrfout_name) as wrfout:
                 timestamps = read_timestamps(wrfout)
                 start_time = timestamps[spinup_steps]
                 output_name = output_file_pattern.format(
@@ -266,8 +280,8 @@ def main():
                                     time=time,
                                     value=rround(value, precision)
                                 )
-                                output_file.write(line)
-                                output_file.write('\n')
+                                output_file.write(line.encode())
+                                output_file.write(b'\n')
 
 
 if __name__ == '__main__':

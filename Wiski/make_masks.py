@@ -1,17 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 
 """
 Generates point-weight masks from a WRF-style geography file and shape files.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import annotations
 
 import argparse
 import os
 import sys
 from collections import defaultdict
-from itertools import cycle, izip
+from itertools import cycle
 from math import isnan, sqrt
 
 import netCDF4
@@ -22,7 +22,6 @@ import pylab
 import yaml
 from mpl_toolkits.basemap import Basemap
 from shapely.geometry import Point, Polygon
-
 
 # SETUP
 
@@ -36,7 +35,7 @@ def read_config():
         description=sys.modules[__name__].__doc__,
         epilog=None
     )
-    parser.add_argument('--config', default='wiski.yml',
+    parser.add_argument('-c', '--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
     args = parser.parse_args()
 
@@ -505,7 +504,7 @@ def plot_data(collated_weights, xlat, xlon, xhgt, height_res, plot_file_pattern,
     sizes = {'o': 3, '*': 4, 'x': 3, '+': 3}
 
     for region, levels_and_weights in collated_weights.items():
-        markers = izip(cycle(colors), cycle(symbols))
+        markers = zip(cycle(colors), cycle(symbols))
         m, x, y, shrink = setup_basemap(xlat, xlon, levels_and_weights)
         pre_plot(m, x, y, xhgt, height_res)
 
