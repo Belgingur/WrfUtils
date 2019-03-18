@@ -11,21 +11,24 @@ import argparse
 import os
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from itertools import cycle
 from math import isnan, sqrt
+from typing import List, Dict, Tuple, Optional, Sequence
 
-import netCDF4
-import numpy
+import netCDF4 as nc
+import numpy as np
 import ogr
 import osr
 import pylab
 import yaml
 from mpl_toolkits.basemap import Basemap
+from osgeo.osr import CoordinateTransformation
 from shapely.geometry import Point, Polygon
 
 # SETUP
 
-numpy.set_printoptions(precision=3, edgeitems=20, linewidth=125)
+np.set_printoptions(precision=3, edgeitems=20, linewidth=125)
 
 NaN = float('NaN')
 
@@ -174,16 +177,15 @@ def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res):
             range_point_count += len(rp)
         ranges.append(range_points if range_point_count else None)
         sorted_point_count += range_point_count
-        print('%7d points in %4dm .. %4d:% 10.2fkm²' %
+        print('%7d points in %4dm .. %4d:% 10.2f km²' %
               (range_point_count, range_start, range_end, range_point_count * sub_cell_area))
         range_start, range_end = range_end, range_end + height_res
     return ranges
 
 
-def read_shapefile(shapefile, tx):
+def read_shapefile(shapefile: str, tx: CoordinateTransformation) -> List[Polygon]:
     """
     Reads a shapefile and returns a list of polygons, each of which is a list of points.
-    :rtype: list of Geometry
     """
     # Now open the shapefile and start by reading the only layer and
     # the first feature, as well as its geometry.
@@ -224,36 +226,35 @@ def coord_transform(from_sr_id, to_sr_id):
 
 # CALCULATE WEIGHTS
 
+@dataclass
 class LabelledWeights(object):
-    def __init__(self, region, min_height, max_height, levels, sub_cell_area, polygons, weights,
-                 atomic=True, offset=(0, 0)):
-        self.region = region
-        """ a key for the region """
+    region: str
+    """ a key for the region """
 
-        self.min_height = min_height
-        """ the bottom of the height range we're looking at (inclusive) """
+    min_height: float
+    """ the bottom of the height range we're looking at (inclusive) """
 
-        self.max_height = max_height
-        """ the top of the height range we're looking at (exclusive) """
+    max_height: float
+    """ the top of the height range we're looking at (exclusive) """
 
-        self.levels = levels
-        """ The number of sub-sampling points in each original grid cell """
+    levels: int
+    """ The number of sub-sampling points in each original grid cell """
 
-        self.sub_cell_area = sub_cell_area
-        """ The (approximate) area of the cell around each sub-sampling point. """
+    sub_cell_area: float
+    """ The (approximate) area of the cell around each sub-sampling point. """
 
-        self.polygons = [polygons] if isinstance(polygons, Polygon) else list(polygons)
-        """ List set of 1 or more unique polygons that the data comes from """
+    polygons: List[Polygon]
+    """ List set of 1 or more unique polygons that the data comes from """
 
-        self.weights = weights
-        """
-        an ndarray indicating how many of the sub-sampling points from
-        the corresponding index in the total grid fall within the height range and
-        any of the polygons.
-        """
+    weights: np.ndarray
+    """
+    an ndarray indicating how many of the sub-sampling points from
+    the corresponding index in the total grid fall within the height range and
+    any of the polygons.
+    """
 
-        self.atomic = atomic
-        """ Whether this is an original region/height combination as opposed to a summation. """
+    atomic: bool = True
+    """ Whether this is an original region/height combination as opposed to a summation. """
 
     def copy(self, content=True):
         if content:
@@ -263,10 +264,10 @@ class LabelledWeights(object):
         else:
             return LabelledWeights(self.region, None, None,
                                    self.levels, self.sub_cell_area,
-                                   set(), numpy.zeros_like(self.weights), True)
+                                   [], np.zeros_like(self.weights), True)
 
     def area(self):
-        return float(numpy.sum(self.weights)) * self.sub_cell_area
+        return float(np.sum(self.weights)) * self.sub_cell_area
 
     def __repr__(self):
         return 'LW[%s %s%s-%s #%s %0.2fkm^2]' % \
@@ -306,7 +307,7 @@ class LabelledWeights(object):
         :return: (j0, i0), cropped_weights
         :rtype: ((int, int), ndarray)
         """
-        W = numpy.argwhere(self.weights)
+        W = np.argwhere(self.weights)
         i0, j0 = W.min(0)
         i1, j1 = W.max(0) + 1
         cropped_weights = self.weights[i0:i1, j0:j1]
@@ -316,7 +317,8 @@ class LabelledWeights(object):
 
         return (i0, j0), cropped_weights
 
-def points_in_polygon(poly, sub_points_per_cell, shape):
+
+def points_in_polygon(poly: Polygon, sub_points_per_cell: Sequence[Sequence[Point]], shape: Tuple[int, int]):
     """
     Counts the number of sub-sampling points in each cell which fall within the
     polygon.
@@ -324,7 +326,7 @@ def points_in_polygon(poly, sub_points_per_cell, shape):
     # Some would first transform data to e.g. km using e.g. lambert-projection
 
     # Step through elements in grid to evaluate if in the study area
-    weights = numpy.zeros(shape[0] * shape[1], dtype=int)
+    weights = np.zeros(shape[0] * shape[1], dtype=int)
     for i, sub_points in enumerate(sub_points_per_cell):
         for point in sub_points:
             if point.within(poly):
@@ -333,15 +335,21 @@ def points_in_polygon(poly, sub_points_per_cell, shape):
     return weights
 
 
-def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, sub_cell_area, height_res):
+def weigh_shapefiles(
+        shape_files: Dict[str, Sequence[str]],
+        tx: CoordinateTransformation,
+        grid_shape: Tuple[int, int],
+        sub_points_by_height: List[Optional[List[List[Point]]]],
+        levels: int,
+        sub_cell_area: float,
+        height_res: float
+) -> List[LabelledWeights]:
     """
     Reads shape_files and for each (polygon,height) pair, calculate a weight grid
     for how many sub-points at that height fall within the polygon.
 
     Returns a list of LabelledWeights(region, height, polygons, weights) instances,
     some of which may refer to the same region,height pairs.
-
-    :rtype: list[LabelledWeights]
     """
     results = []
     for shape_file, regions in shape_files.items():
@@ -349,31 +357,29 @@ def weigh_shapefiles(shape_files, tx, grid_shape, sub_points_by_height, levels, 
         print('\nRead', shape_file)
 
         polygons = read_shapefile(shape_file, tx)
+        print(f'Found {len(polygons)} polygons')
         for poly, region in zip(polygons, regions):
             print('% 15s' % region, end='')
             for height_index, sub_points in enumerate(sub_points_by_height):
                 weights = points_in_polygon(poly, sub_points, grid_shape)
-                area = numpy.sum(weights) * sub_cell_area
+                area = np.sum(weights) * sub_cell_area
                 height = height_index * height_res
                 if area:
                     print('\t', height, end='')
-                    r = LabelledWeights(region, height, height + height_res, levels, sub_cell_area, poly, weights)
+                    r = LabelledWeights(region, height, height + height_res, levels, sub_cell_area, [poly], weights)
                     results.append(r)
             print()
 
     return results
 
 
-def collate_weights(raw_weights):
+def collate_weights(raw_weights: List[LabelledWeights]) -> Dict[str, List[LabelledWeights]]:
     """
     Group together weights files belonging to the same region and merge the
     weights that belong to the same region *and* height range.
-
-    :param LabelledWeights[] raw_weights:
-    :rtype: dict[str, list[LabelledWeights]]
     """
     print('\nCollate weights by region and height')
-    scratch = defaultdict()  # LabelledWeights objects by (region, height)
+    scratch: Dict[Tuple[str, float, float], LabelledWeights] = defaultdict()
 
     # Combine LabelledWeights instances with identical key
     for raw in raw_weights:
@@ -428,7 +434,7 @@ def write_weights(collated_weights, weight_file, region_height_key_pattern, regi
             print('add', key, weights.shape)
             output_map[key] = weights
     print('\nWrite', weight_file)
-    numpy.savez_compressed(weight_file, **output_map)
+    np.savez_compressed(weight_file, **output_map)
 
 
 # PLOTTING
@@ -439,11 +445,11 @@ def setup_basemap(xlat, xlon, levels_and_weights):
     lon_min = +180
     lon_max = -180
     for law in levels_and_weights:
-        j_nz = numpy.nonzero(numpy.sum(law.weights, axis=0))
-        j_min, j_max = numpy.min(j_nz) - 1, numpy.max(j_nz) + 1
+        j_nz = np.nonzero(np.sum(law.weights, axis=0))
+        j_min, j_max = np.min(j_nz) - 1, np.max(j_nz) + 1
         j_mid = (j_min + j_max) // 2
-        i_nz = numpy.nonzero(numpy.sum(law.weights, axis=1))
-        i_min, i_max = numpy.min(i_nz) - 1, numpy.max(i_nz) + 1
+        i_nz = np.nonzero(np.sum(law.weights, axis=1))
+        i_min, i_max = np.min(i_nz) - 1, np.max(i_nz) + 1
         i_mid = (i_min + i_max) // 2
         # print('ranges', i_min, i_max, j_min, j_max)
 
@@ -472,10 +478,10 @@ def pre_plot(m, x, y, xhgt, height_res):
     pylab.figure(figsize=(11.02, 8.27), dpi=72, frameon=True)
     m.drawcoastlines(linewidth=1.5, color='black')
     m.readshapefile('joklar/joklar', 'joklar', linewidth=1.5, color='black')
-    m.drawparallels(numpy.arange(63., 67., .1), labels=[1, 0, 0, 0])
-    m.drawmeridians(numpy.arange(-26., -12., .2), labels=[0, 0, 0, 1])
+    m.drawparallels(np.arange(63., 67., .1), labels=[1, 0, 0, 0])
+    m.drawmeridians(np.arange(-26., -12., .2), labels=[0, 0, 0, 1])
     m.drawmapscale(-15., 63.5, -19., 65., 100., barstyle='fancy', fontsize=12)
-    iso = numpy.arange(height_res, 2300, height_res)
+    iso = np.arange(height_res, 2300, height_res)
     cs = m.contour(x, y, xhgt, iso, colors='#808080', linewidths=0.5)
     pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
     return m
@@ -491,12 +497,15 @@ def post_plot(plot_file_pattern, plot_title_pattern, law):
     pylab.close()
 
 
-def plot_data(collated_weights, xlat, xlon, xhgt, height_res, plot_file_pattern, plot_title_pattern):
-    """
-    :type plot_file_pattern: string
-    :type collated_weights: dict[str, LabelledWeights[]]
-    """
-
+def plot_data(
+        collated_weights: Dict[str, List[LabelledWeights]],
+        xlat: np.ndarray,
+        xlon: np.ndarray,
+        xhgt: np.ndarray,
+        height_res: float,
+        plot_file_pattern: str,
+        plot_title_pattern: str
+):
     print('\nPlot maps')
     # symbols = ('o', '*', '+', 'x')
     symbols = ('o', '*')
@@ -539,7 +548,7 @@ def main():
                          config['plot_spatial_reference'])
 
     print('Read', config['geofile'])
-    with netCDF4.Dataset(config['geofile']) as dataset:
+    with nc.Dataset(config['geofile']) as dataset:
         xhgt = dataset.variables['HGT_M'][0]
         xlon = dataset.variables['XLONG_M'][0]
         xlat = dataset.variables['XLAT_M'][0]
