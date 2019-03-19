@@ -13,7 +13,7 @@ import sys
 from datetime import datetime
 from gzip import GzipFile
 from itertools import groupby
-from typing import Tuple, Dict, List, Iterable
+from typing import Tuple, Dict, List, Iterable, Optional
 
 import netCDF4 as nc
 import numpy as np
@@ -47,7 +47,7 @@ def RegexMatchingArg(pattern, description=None):
     return Type
 
 
-def read_config() -> Tuple[Dict, List[str], List[str], bool]:
+def read_config() -> Tuple[Dict, List[str], Optional[str], List[str], bool]:
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
         epilog=None
@@ -56,6 +56,8 @@ def read_config() -> Tuple[Dict, List[str], List[str], bool]:
                         help='Write more progress data')
     parser.add_argument('-c', '--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
+    parser.add_argument('-s', '--simulation',
+                        help='Configured simulation to work with.')
     parser.add_argument('-p', '--perturb-forecast', default='N0E0',
                         type=RegexMatchingArg('[NS][0-9]+[WE][0-9]+(,[NS][0-9]+[WE][0-9]+)*',
                                               '%s is not a comma-separated list of [NS]number[EW]number values'),
@@ -64,15 +66,22 @@ def read_config() -> Tuple[Dict, List[str], List[str], bool]:
                              'If multiple values are given, the process is run once for each perturbation '
                              'and the corresponding string value made available as {perturbation} in the '
                              'output file pattern')
-    parser.add_argument('wrfout', nargs='+',
-                        help='WRF model output to calculate from')
+    parser.add_argument('wrfouts', nargs='*',
+                        help='WRF model output to calculate from. Overrides pattern in config.')
     args = parser.parse_args()
 
     perturb_pretty = args.perturb_forecast.split(',')
 
     with open(args.config) as f:
         config = yaml.load(f)
-    return config, perturb_pretty, args.wrfout, args.verbose
+
+    wrfouts = args.wrfouts
+    if not wrfouts:
+        wrfouts = config.get('simulations', {}).get(args.simulation, {}).get('wrfouts') or config.get('wrfouts')
+    if not wrfouts:
+        parser.error('No wrfout files configured on command-line in simulation config or in root config')
+
+    return config, perturb_pretty, args.simulation, wrfouts, args.verbose
 
 
 def is_digit(c: str):
@@ -96,7 +105,8 @@ def parse_perturb(perturb_pretties):
 
 # PREPARE
 
-def read_weights(weight_file, levels):
+def read_weights(weight_file_pattern: str, simulation: str, levels):
+    weight_file = weight_file_pattern.format(simulation=simulation)
     print('Read weights from', weight_file)
     weight_map = np.load(weight_file)
     keys_and_weights = []
@@ -218,12 +228,12 @@ def rround(x, p):
 
 
 def main():
-    config, perturb_pretties, wrfouts, verbose = read_config()
+    config, perturb_pretties, simulation, wrfouts, verbose = read_config()
     perturb_idxs = parse_perturb(perturb_pretties)
     levels: int = config['sub_sampling'] ** 2
     spinup_steps = int(config['spinup_steps'])
 
-    region_keys_and_weights = read_weights(config['weight_file'], levels)
+    region_keys_and_weights = read_weights(config['weight_file_pattern'], simulation, levels)
     output_line_pattern: str = config['output_line_pattern']
     output_file_pattern: str = config['output_file_pattern']
 

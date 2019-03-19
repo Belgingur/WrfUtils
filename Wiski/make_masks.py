@@ -41,22 +41,26 @@ def read_config():
     )
     parser.add_argument('-c', '--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
-    parser.add_argument('simulation', nargs='?',
+    parser.add_argument('-s', '--simulation',
                         help='Configured simulation to work with.')
+    parser.add_argument('geo', nargs='?',
+                        help='WRF geo file to calculate from. Overrides setting in config.')
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.load(f)
 
-    geofile_path = config.get('simulations', {}).get(args.simulation, {}).get('geo') or config.get('geofile')
-    if not geofile_path:
-        parser.error('No geo-file configured in root config or simulation config')
-    geofile_path = os.path.expanduser(geofile_path)
-    geofile_path = os.path.expandvars(geofile_path)
-    if not os.path.isfile(geofile_path):
-        parser.error(f'geofile does not exist: {geofile_path}')
+    geo = args.geo
+    if not geo:
+        geo = config.get('simulations', {}).get(args.simulation, {}).get('geo') or config.get('geo')
+    if not geo:
+        parser.error('No geo file configured on command-line in simulation config or in root config')
+    geo = os.path.expanduser(geo)
+    geo = os.path.expandvars(geo)
+    if not os.path.isfile(geo):
+        parser.error(f'geo file does not exist: {geo}')
 
-    return config, args.simulation, geofile_path
+    return config, args.simulation, geo
 
 
 def linear_interpolate(x0, n, d1, d2):

@@ -1,5 +1,5 @@
 # Settings for make_masks
-geofile: '~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d01.nc'
+geo: '~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d01.nc'
 sub_sampling: 3
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon

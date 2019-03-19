@@ -1,5 +1,5 @@
 # Settings for make_masks
-geofile: 'wrfout/geo_em.d02.nc'
+geo: 'wrfout/geo_em.d02.nc'
 sub_sampling: 10
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon

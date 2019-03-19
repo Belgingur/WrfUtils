@@ -1,5 +1,5 @@
 # Settings for make_masks
-sub_sampling: 2
+sub_sampling: 5
 shape_spatial_reference: 3057  # isnet
 #shape_spatial_reference: 4326  # wgs84 lat/lon
 plot_spatial_reference: 4326  # wgs84 lat/lon
