@@ -1,0 +1,91 @@
+# Settings for make_masks
+sub_sampling: 2
+shape_spatial_reference: 3057  # isnet
+#shape_spatial_reference: 4326  # wgs84 lat/lon
+plot_spatial_reference: 4326  # wgs84 lat/lon
+
+shape_files:
+  shapefiles/Bla_isn93.shp:
+    - blondulon
+  shapefiles/THJ_KVI.shp:
+    - kvislarveita
+  shapefiles/Fljotsdalsstod_vatnasvid.shp:
+    - ufsarlon
+    - halslon
+    - hraunaveita
+    - hraunaveita
+    - hraunaveita
+    - hraunaveita
+  shapefiles/Thj_Sul_Bud.shp:
+    - sultartangi
+    - budarhals
+  shapefiles/THJ_HAG.shp:
+    - hagongulon
+  shapefiles/TU_SIG.shp:
+    - tungnaa
+    - thorisvatn
+    - tungnaa
+
+simulations:
+
+  # RÁV 2 Dataset at 10km and 2km resolution
+  wrf-gfs-10:
+    wrfouts: ~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d01_*_reduced.nc
+    geo: ~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d01.nc
+  wrf-gfs-02:
+    wrfouts: ~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d02_*_reduced.nc
+    geo: ~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d02.nc
+
+  # RÁV 2.5 Dataset at 5km and 1km resolution
+  wrf-gfs-05:
+    wrfouts: ~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d01_*_reduced.nc
+    geo: ~/Downloads/simulations/RAV2_5-1km:2014-15/geo_em.d01.nc
+  #wrf-gfs-01:
+  #  wrfouts: ~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d02_*_reduced.nc
+  #  geo: ~/Downloads/simulations/RAV2_5-1km:2014-15/geo_em.d02.nc
+
+  # WRF ERA-Interim down scaling at 10km and 2km resolution
+  wrf-era-10:
+    wrfouts: ~/Downloads/simulations/RAV2:2014-15/wrfout_d01_*_reduced.nc
+    geo: ~/Downloads/simulations/RAV2:2014-15/geo_em.d01.nc
+  wrf-era-02:
+    wrfouts: ~/Downloads/simulations/RAV2:2014-15/wrfout_d02_*_reduced.nc
+    geo: ~/Downloads/simulations/RAV2:2014-15/geo_em.d02.nc
+
+  # WRF classic-WOD operational forecasts at 3km resolution
+  wrf-gfs-03-fc:
+    wrfouts: ~/Downloads/simulations/island-3/wrfout_d02_*_reduced.nc
+    geo: ~/Downloads/simulations/island-3/geo_em.d02.nc
+    file_steps: [6, 12]  # Use steps 6..12 from each file.
+
+
+# Split each region into height bands at this interval [m]
+#height_resolution: 100  # defaults to one band
+
+# Pattern to create key for total region without height
+region_total_key_pattern: '{region}:{offset[0]}_{offset[1]}'
+
+# Pattern to create key for region/height combination
+region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offset[1]}'
+
+# make_masks writes weight grids to this file and wiski.py reads them back
+weight_file_pattern: 'weights_{simulation}.npz'
+
+# Plot regions to these files. Ges key from regional_total_key_pattern
+plot_file_pattern: 'plots/{region}_{simulation}.svg'
+
+# Pattern to construct title for plots
+plot_title_pattern: '{simulation}: {region}'
+
+# How many steps to skip from beginning of wrfout file.
+#spinup_steps: 0
+
+# Pattern for output file-names (disabled)
+# output_file_pattern:
+
+# Pattern for each line in the output data file (disabled)
+#output_line_pattern: 'wrf_{simulation}_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'
+
+# Variables to write to file for each step. They are either read directly from
+# wrfout file or returned by a load_data_VARNAM function.
+variables: []  # disabled
