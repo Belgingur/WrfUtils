@@ -129,7 +129,7 @@ def sub_sample_grid(xlon, xlat, subres):
 
 
 def interpolate_height(height, subres):
-    print('\nCreate %s*%s interpolated heights in each of %s*%s cells' %
+    print('\nCreate %s*%s interpolated heights in each of %s×%s cells' %
           (subres, subres, height.shape[0], height.shape[1]))
 
     i_lim, j_lim = height.shape
@@ -431,21 +431,23 @@ def plain_name(shape_file):
     return os.path.splitext(os.path.basename(shape_file))[0]
 
 
-def write_weights(simulation: str, collated_weights, weight_file_pattern: str, region_height_key_pattern: str, region_total_key_pattern: str):
+def write_weights(simulation: str, collated_weights: Dict[str, List[LabelledWeights]], weight_file_pattern: str, region_height_key_pattern: str, region_total_key_pattern: str):
     """
     Write weights to a compressed numpy npz file
     """
+    print()
+    print('Write weights')
     output_map = {}
     for region, lw_list in collated_weights.items():
         for lw in lw_list:
             pattern = region_height_key_pattern if lw.atomic else region_total_key_pattern
             offset, weights = lw.cropped_weights()
-            lwd = lw.__dict__
+            lwd = dataclasses.asdict(lw)
             key = pattern.format(simulation=simulation, offset=offset, **lwd)
-            print('add', key, weights.shape)
+            print('  add', key, '×'.join(map(str, weights.shape)), 'weights')
             output_map[key] = weights
     weight_file = weight_file_pattern.format(simulation=simulation)
-    print('\nWrite', weight_file)
+    print('Write', weight_file)
     np.savez_compressed(weight_file, **output_map)
 
 
@@ -525,8 +527,6 @@ def plot_data(
     symbols = ('o', '*')
     colors = ('r', 'g', 'b', 'c', 'm', 'y', 'k')
     sizes = {'o': 3, '*': 4, 'x': 3, '+': 3}
-
-    print("collated_weights.keys():", list(collated_weights.keys()))
 
     for region, levels_and_weights in collated_weights.items():
         markers = zip(cycle(colors), cycle(symbols))
