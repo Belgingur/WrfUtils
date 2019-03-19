@@ -36,10 +36,10 @@ region_total_key_pattern: '{region}:{offset[0]}_{offset[1]}'
 region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offset[1]}'
 
 # make_masks writes weight grids to this file and wiski.py reads them back
-weight_file: 'weights.npz'
+weight_file_pattern: 'weights.npz'
 
 # Plot regions to these files. Ges key from regional_total_key_pattern
-plot_file_pattern: 'plots/{region_key}.svg'
+plot_file_pattern: 'plots/{region}.svg'
 
 # Pattern to construct title for plots
 plot_title_pattern: '{region}'

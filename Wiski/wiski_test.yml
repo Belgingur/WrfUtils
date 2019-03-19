@@ -1,5 +1,5 @@
 # Settings for make_masks
-geofile: 'wrfout_test/geo_em.d01.nc'
+geofile: '~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d01.nc'
 sub_sampling: 3
 shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
@@ -36,10 +36,10 @@ region_total_key_pattern: '{region}:{offset[0]}_{offset[1]}'
 region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offset[1]}'
 
 # make_masks writes weight grids to this file and wiski.py reads them back
-weight_file: 'weights_test.npz'
+weight_file_pattern: 'weights_test.npz'
 
 # Plot regions to these files. Ges key from regional_total_key_pattern
-plot_file_pattern: 'plots_test/{region_key}.svg'
+plot_file_pattern: 'plots_test/{region}.svg'
 
 # Pattern to construct title for plots
 plot_title_pattern: '{region}'

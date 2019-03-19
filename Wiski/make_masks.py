@@ -8,6 +8,7 @@ Generates point-weight masks from a WRF-style geography file and shape files.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import sys
 from collections import defaultdict
@@ -40,11 +41,22 @@ def read_config():
     )
     parser.add_argument('-c', '--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
+    parser.add_argument('simulation', nargs='?',
+                        help='Configured simulation to work with.')
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.load(f)
-    return config
+
+    geofile_path = config.get('simulations', {}).get(args.simulation, {}).get('geo') or config.get('geofile')
+    if not geofile_path:
+        parser.error('No geo-file configured in root config or simulation config')
+    geofile_path = os.path.expanduser(geofile_path)
+    geofile_path = os.path.expandvars(geofile_path)
+    if not os.path.isfile(geofile_path):
+        parser.error(f'geofile does not exist: {geofile_path}')
+
+    return config, args.simulation, geofile_path
 
 
 def linear_interpolate(x0, n, d1, d2):
@@ -231,10 +243,10 @@ class LabelledWeights(object):
     region: str
     """ a key for the region """
 
-    min_height: float
+    min_height: Optional[float]
     """ the bottom of the height range we're looking at (inclusive) """
 
-    max_height: float
+    max_height: Optional[float]
     """ the top of the height range we're looking at (exclusive) """
 
     levels: int
@@ -403,7 +415,8 @@ def collate_weights(raw_weights: List[LabelledWeights]) -> Dict[str, List[Labell
         for lw in lw_list:
             print('    % 5.0f % 8.2fkm²' % (lw.min_height, lw.area()))
             total += lw
-        print('    TOTAL % 8.2fkm²' % total.area())
+        if len(lw_list) > 1:
+            print('    TOTAL % 8.2fkm²' % total.area())
         lw_list.append(total)
 
     return collated
@@ -415,14 +428,9 @@ def plain_name(shape_file):
     return os.path.splitext(os.path.basename(shape_file))[0]
 
 
-def write_weights(collated_weights, weight_file, region_height_key_pattern, region_total_key_pattern):
+def write_weights(simulation: str, collated_weights, weight_file_pattern: str, region_height_key_pattern: str, region_total_key_pattern: str):
     """
     Write weights to a compressed numpy npz file
-
-    :param dict[str,LabelledWeight[]] collated_weights:
-    :param weight_file: Weight file to output
-    :param unicode region_height_key_pattern: String format pattern
-    :param unicode region_total_key_pattern: String format pattern
     """
     output_map = {}
     for region, lw_list in collated_weights.items():
@@ -430,9 +438,10 @@ def write_weights(collated_weights, weight_file, region_height_key_pattern, regi
             pattern = region_height_key_pattern if lw.atomic else region_total_key_pattern
             offset, weights = lw.cropped_weights()
             lwd = lw.__dict__
-            key = pattern.format(offset=offset, **lwd)
+            key = pattern.format(simulation=simulation, offset=offset, **lwd)
             print('add', key, weights.shape)
             output_map[key] = weights
+    weight_file = weight_file_pattern.format(simulation=simulation)
     print('\nWrite', weight_file)
     np.savez_compressed(weight_file, **output_map)
 
@@ -487,17 +496,19 @@ def pre_plot(m, x, y, xhgt, height_res):
     return m
 
 
-def post_plot(plot_file_pattern, plot_title_pattern, law):
-    key = plot_title_pattern.format(**law.__dict__)
-    plot_file = plot_file_pattern.format(region_key=key)
+def post_plot(plot_file_pattern: str, plot_title_pattern: str, simulation: str, law: LabelledWeights):
+    law_dict = dataclasses.asdict(law)
+    plot_title = plot_title_pattern.format(simulation=simulation, **law_dict)
+    plot_file = plot_file_pattern.format(simulation=simulation, **law_dict)
     print(' ', plot_file)
-    pylab.title(law.region)
+    pylab.title(plot_title)
     pylab.savefig(plot_file)
     pylab.clf()
     pylab.close()
 
 
 def plot_data(
+        simulation: str,
         collated_weights: Dict[str, List[LabelledWeights]],
         xlat: np.ndarray,
         xlon: np.ndarray,
@@ -506,11 +517,13 @@ def plot_data(
         plot_file_pattern: str,
         plot_title_pattern: str
 ):
-    print('\nPlot maps')
+    print('\nPlot maps for', simulation)
     # symbols = ('o', '*', '+', 'x')
     symbols = ('o', '*')
     colors = ('r', 'g', 'b', 'c', 'm', 'y', 'k')
     sizes = {'o': 3, '*': 4, 'x': 3, '+': 3}
+
+    print("collated_weights.keys():", list(collated_weights.keys()))
 
     for region, levels_and_weights in collated_weights.items():
         markers = zip(cycle(colors), cycle(symbols))
@@ -535,20 +548,19 @@ def plot_data(
                     size = sizes[style] * sqrt((level + 1) / law.levels) / shrink
                     m.plot(x[mask], y[mask], marker, ms=size, mec=color, alpha=3 / 4)
 
-        post_plot(plot_file_pattern, plot_title_pattern, law)
+        post_plot(plot_file_pattern, plot_title_pattern, simulation, law)
 
 
 # MAIN FUNCTION
 
 def main():
-    config = read_config()
+    config, simulation, geofile_path = read_config()
 
     # Define the coordinate transformation needed for shapefiles
-    tx = coord_transform(config['shape_spatial_reference'],
-                         config['plot_spatial_reference'])
+    tx = coord_transform(config['shape_spatial_reference'], config['plot_spatial_reference'])
 
-    print('Read', config['geofile'])
-    with nc.Dataset(config['geofile']) as dataset:
+    print('Read', geofile_path)
+    with nc.Dataset(geofile_path) as dataset:
         xhgt = dataset.variables['HGT_M'][0]
         xlon = dataset.variables['XLONG_M'][0]
         xlat = dataset.variables['XLAT_M'][0]
@@ -557,28 +569,32 @@ def main():
         resolution = [dataset.DX.item(), dataset.DY.item()]
         grid_shape = xlon.shape
 
-    subres = config['sub_sampling']
-    height_res = int(config['height_resolution'])
-    levels = subres ** 2
-    sub_cell_area = resolution[0] * resolution[1] / levels / 1000000
-    sub_points = sub_sample_grid(xlon, xlat, subres)
-    sub_heights = interpolate_height(height, subres)
+    height_res = int(config.get('height_resolution', 10000))  # Default results in a single band
+    sub_res = config['sub_sampling']
+    sub_levels = sub_res ** 2
+    sub_cell_area = resolution[0] * resolution[1] / sub_levels / 1000000
+    sub_points = sub_sample_grid(xlon, xlat, sub_res)
+    sub_heights = interpolate_height(height, sub_res)
     sub_points_by_height = split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res)
 
-    labelled_weights = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points_by_height,
-                                        levels, sub_cell_area, height_res)
+    labelled_weights = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points_by_height, sub_levels, sub_cell_area, height_res)
     collated_weights = collate_weights(labelled_weights)
 
-    write_weights(collated_weights,
-                  config['weight_file'],
+    write_weights(simulation,
+                  collated_weights,
+                  config['weight_file_pattern'],
                   config['region_height_key_pattern'],
                   config['region_total_key_pattern'])
 
     if config['plot_file_pattern']:
-        plot_data(collated_weights, xlat, xlon, xhgt, height_res,
+        plot_data(simulation, collated_weights,
+                  xlat, xlon, xhgt, height_res,
                   config['plot_file_pattern'],
                   config['plot_title_pattern'])
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(e)
