@@ -48,7 +48,7 @@ plot_title_pattern: '{region}'
 spinup_steps: 3
 
 # Pattern for output file-names
-output_file_pattern: 'wrf_lvc_{start_time:%Y-%m-%dT%H:%M}-{perturb_pretty}.gz'
+output_file_pattern: 'wrf_test_{start_time:%Y-%m-%dT%H:%M}-{perturb_pretty}.gz'
 
 # Pattern for each line in the output data file
 output_line_pattern: 'wrf_{region_key}_{variable};{time:%d.%m.%Y %H:%M};{value}'

@@ -15,7 +15,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from itertools import cycle
 from math import isnan, sqrt
-from typing import List, Dict, Tuple, Optional, Sequence
+from typing import List, Dict, Tuple, Optional, Sequence, Any
 
 import netCDF4 as nc
 import numpy as np
@@ -34,7 +34,7 @@ np.set_printoptions(precision=3, edgeitems=20, linewidth=125)
 NaN = float('NaN')
 
 
-def read_config():
+def read_config() -> Tuple[Dict[str, Any], argparse.Namespace]:
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
         epilog=None
@@ -50,17 +50,16 @@ def read_config():
     with open(args.config) as f:
         config = yaml.load(f)
 
-    geo = args.geo
-    if not geo:
-        geo = config.get('simulations', {}).get(args.simulation, {}).get('geo') or config.get('geo')
-    if not geo:
+    if not args.geo:
+        args.geo = config.get('simulations', {}).get(args.simulation, {}).get('geo') or config.get('geo')
+    if not args.geo:
         parser.error('No geo file configured on command-line in simulation config or in root config')
-    geo = os.path.expanduser(geo)
-    geo = os.path.expandvars(geo)
-    if not os.path.isfile(geo):
-        parser.error(f'geo file does not exist: {geo}')
+    args.geo = os.path.expanduser(args.geo)
+    args.geo = os.path.expandvars(args.geo)
+    if not os.path.isfile(args.geo):
+        parser.error(f'geo file does not exist: {args.geo}')
 
-    return config, args.simulation, geo
+    return config, args
 
 
 def linear_interpolate(x0, n, d1, d2):
@@ -558,13 +557,13 @@ def plot_data(
 # MAIN FUNCTION
 
 def main():
-    config, simulation, geofile_path = read_config()
+    config, args = read_config()
 
     # Define the coordinate transformation needed for shapefiles
     tx = coord_transform(config['shape_spatial_reference'], config['plot_spatial_reference'])
 
-    print('Read', geofile_path)
-    with nc.Dataset(geofile_path) as dataset:
+    print('Read', args.geo)
+    with nc.Dataset(args.geo) as dataset:
         xhgt = dataset.variables['HGT_M'][0]
         xlon = dataset.variables['XLONG_M'][0]
         xlat = dataset.variables['XLAT_M'][0]
@@ -584,14 +583,14 @@ def main():
     labelled_weights = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points_by_height, sub_levels, sub_cell_area, height_res)
     collated_weights = collate_weights(labelled_weights)
 
-    write_weights(simulation,
+    write_weights(args.simulation,
                   collated_weights,
                   config['weight_file_pattern'],
                   config['region_height_key_pattern'],
                   config['region_total_key_pattern'])
 
     if config['plot_file_pattern']:
-        plot_data(simulation, collated_weights,
+        plot_data(args.simulation, collated_weights,
                   xlat, xlon, xhgt, height_res,
                   config['plot_file_pattern'],
                   config['plot_title_pattern'])
