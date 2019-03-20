@@ -13,14 +13,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from gzip import GzipFile
 from itertools import groupby
-from typing import Tuple, Dict, List, Optional, Iterable, Any
+from typing import Tuple, Dict, List, Optional, Iterable
 
 import netCDF4 as nc
 import numpy as np
-import yaml
 from pytz import UTC
 
 # SETUP
+from make_masks import ConfigGetter
 
 np.set_printoptions(precision=3, threshold=10000, linewidth=125)
 
@@ -47,7 +47,7 @@ def regex_matching_arg(pattern, description=None):
     return type
 
 
-def read_config() -> Tuple[Dict[str, Any], argparse.Namespace]:
+def read_config() -> ConfigGetter:
     parser = argparse.ArgumentParser(
         description=__doc__,
         epilog=None
@@ -72,24 +72,15 @@ def read_config() -> Tuple[Dict[str, Any], argparse.Namespace]:
                         help='WRF model output to calculate from. Overrides pattern in config.')
     args = parser.parse_args()
 
-    with open(args.config) as f:
-        config = yaml.load(f)
-
-    if not args.wrfouts:
-        args.wrfouts = config.get('simulations', {}).get(args.simulation, {}).get('wrfouts') or config.get('wrfouts')
-    if not args.wrfouts:
-        parser.error('No wrfout files configured on command-line in simulation config or in root config')
-
-    args.perturb_forecast = args.perturb_forecast.split(',')
-
-    return config, args
+    return ConfigGetter(parser)
 
 
 def is_digit(c: str):
     return c in '0123456789'
 
 
-def parse_perturb(perturb_pretties: List[str]) -> List[Tuple[int, int]]:
+def parse_perturb(perturb_pretty: str) -> List[Tuple[int, int]]:
+    perturb_pretties = perturb_pretty.split(',')
     perturb_idxs = []
     for pp in perturb_pretties:
         pp = tuple(''.join(x) for _, x in groupby(pp, key=is_digit))
@@ -262,19 +253,19 @@ def rround(x, p):
 
 
 def main():
-    config, args = read_config()
-    perturb_idxs = parse_perturb(args.perturb_forecast)
-    levels: int = config['sub_sampling'] ** 2
-    spinup_steps = int(config['spinup_steps'])
+    cfg = read_config()
+    perturb_idxs = parse_perturb(cfg.perturb_forecast)
+    levels: int = cfg.sub_sampling ** 2
+    spinup_steps = int(cfg.spinup_steps)
 
-    regions_and_weights = read_weights(config['weight_file_pattern'], args.simulation, levels)
-    output_line_pattern: str = config['output_line_pattern']
-    output_file_pattern: str = config['output_file_pattern']
+    regions_and_weights = read_weights(cfg.weight_file_pattern, cfg.simulation, levels)
+    output_line_pattern: str = cfg.output_line_pattern
+    output_file_pattern: str = cfg.output_file_pattern
 
-    for wrfout_name in args.wrfouts:
+    for wrfout_name in cfg.wrfouts:
         print('Read', wrfout_name)
 
-        for perturb_idx, perturb_pretty in zip(perturb_idxs, args.perturb_forecast):
+        for perturb_idx, perturb_pretty in zip(perturb_idxs, cfg.perturb_forecast):
             with nc.Dataset(wrfout_name) as wrfout:
                 timestamps = read_timestamps(wrfout)
                 start_time = timestamps[spinup_steps]
@@ -288,7 +279,7 @@ def main():
                     print('Perturb', perturb_pretty, perturb_idx)
 
                 with GzipFile(output_name, 'w') as output_file:
-                    for var_key in config['variables']:
+                    for var_key in cfg.variables:
                         print('  ', var_key)
                         data, precision = read_data(wrfout, var_key)
                         # print(data.shape, np.min(data), np.average(data), np.max(data))
@@ -312,7 +303,7 @@ def main():
                             sum_over_area = np.sum(weighed, axis=(1, 2))  # t
                             avg_over_area = sum_over_area / raw.total_weight
 
-                            if args.verbose:
+                            if cfg.verbose:
                                 avg = np.average(avg_over_area[spinup_steps:])
                                 print('    {:<25}{:8.{:}f}'.format(raw.key, avg, precision))
 

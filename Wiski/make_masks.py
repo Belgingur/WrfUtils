@@ -13,9 +13,9 @@ import os
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from itertools import cycle
+from itertools import cycle, count
 from math import isnan, sqrt
-from typing import List, Dict, Tuple, Optional, Sequence, Any
+from typing import List, Dict, Tuple, Optional, Sequence, Any, Callable
 
 import netCDF4 as nc
 import numpy as np
@@ -33,33 +33,64 @@ np.set_printoptions(precision=3, edgeitems=20, linewidth=125)
 
 NaN = float('NaN')
 
+CFG = Callable[[str], Optional[Any]]
 
-def read_config() -> Tuple[Dict[str, Any], argparse.Namespace]:
+
+class ConfigGetter:
+
+    def __init__(self, parser: argparse.ArgumentParser):
+        self._parser = parser
+        self._args = self._parser.parse_args()
+        with open(self._args.config) as f:
+            self._config = yaml.load(f)
+        self._sim_config = self._config.get('simulations', {}).get(self._args.simulation, {})
+
+    def get(self, key: str, default=...):
+        #print('get', key, '→', end=' ')
+        value = getattr(self._args, key, None)
+        if value is not None:
+            #print(value, '[command-line]')
+            return value
+
+        value = self._sim_config.get(key)
+        if value is not None:
+            #print(value, '[simulation]')
+            return value
+
+        value = self._config.get(key)
+        setattr(self._args, key, value)
+
+        if value is None:
+            if default is ...:
+                self._parser.error(f'No configuration found for "{key}" in command-line arguments, simulation config or root config')
+            #print(default, '[default]')
+            return default
+
+        #print(value, '[root]')
+        return value
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == 'get' or name.startswith('_'):
+            return super().__getattribute__(name)
+        else:
+            return self.get(name)
+
+
+def read_config() -> ConfigGetter:
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
         epilog=None
     )
+    parser.add_argument('-v', '--verbose', default=False, action='store_true',
+                        help='Write more progress data')
     parser.add_argument('-c', '--config', default='wiski.yml',
                         help='Read configuration from this file (def: wiski.yml)')
     parser.add_argument('-s', '--simulation',
                         help='Configured simulation to work with.')
     parser.add_argument('geo', nargs='?',
                         help='WRF geo file to calculate from. Overrides setting in config.')
-    args = parser.parse_args()
 
-    with open(args.config) as f:
-        config = yaml.load(f)
-
-    if not args.geo:
-        args.geo = config.get('simulations', {}).get(args.simulation, {}).get('geo') or config.get('geo')
-    if not args.geo:
-        parser.error('No geo file configured on command-line in simulation config or in root config')
-    args.geo = os.path.expanduser(args.geo)
-    args.geo = os.path.expandvars(args.geo)
-    if not os.path.isfile(args.geo):
-        parser.error(f'geo file does not exist: {args.geo}')
-
-    return config, args
+    return ConfigGetter(parser)
 
 
 def linear_interpolate(x0, n, d1, d2):
@@ -129,7 +160,7 @@ def sub_sample_grid(xlon, xlat, subres):
 
 
 def interpolate_height(height, subres):
-    print('\nCreate %s*%s interpolated heights in each of %s×%s cells' %
+    print('\nCreate %s×%s supersampled cells in each of %s×%s cells' %
           (subres, subres, height.shape[0], height.shape[1]))
 
     i_lim, j_lim = height.shape
@@ -198,34 +229,58 @@ def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res):
     return ranges
 
 
-def read_shapefile(shapefile: str, tx: CoordinateTransformation) -> List[Polygon]:
+def read_shapefile(shapefile: str, tx: CoordinateTransformation, verbose: bool) -> List[Polygon]:
     """
     Reads a shapefile and returns a list of polygons, each of which is a list of points.
     """
     # Now open the shapefile and start by reading the only layer and
     # the first feature, as well as its geometry.
-    source = ogr.Open(shapefile)
-    layer = source.GetLayer()
-    counts = layer.GetFeatureCount()
+    source: ogr.DataSource = ogr.Open(shapefile)
+    layer: ogr.Layer = source.GetLayer()
+    counts: int = layer.GetFeatureCount()
     polygons = []
+
+    if verbose:
+        print("features:")
     for c in range(counts):
         try:
-            feature = layer.GetFeature(c)
-            geometry = feature.GetGeometryRef()
+            feature: ogr.Feature = layer.GetFeature(c)
+            # if get_field_value(feature, 'catagory') == 'intrnl_rock':
+            #     continue
 
-            # Do the coordinate transformation
+            # Convert feature into a polygon in the target projection
+            geometry: ogr.Geometry = feature.GetGeometryRef()
             geometry.Transform(tx)
+            points: List[Point] = geometry.GetGeometryRef(0).GetPoints()
+            polygon = Polygon(points)
 
-            # Read the polygon (there is just one) and the defining points.
-            points = geometry.GetGeometryRef(0).GetPoints()
-            polygons.append(Polygon(points))
+            if verbose:
+                bounds = polygon.bounds
+                bounds = f'({bounds[1]:0.3f},{bounds[0]:0.3f}) - ({bounds[3]:0.3f},{bounds[2]:0.3f})'
+                print('  ', c, bounds, end='')
+                for i, k in enumerate(feature.keys()):
+                    print(f'\t{k}={feature.GetField(i)}', end='')
+                print()
+
+            polygons.append(polygon)
+
         except TypeError as te:
             if 'Geometry_Transform' in str(te):
                 print('ERROR:', str(te))
                 print('You may need to set environment variable GDAL_DATA="/usr/share/gdal/1.10/" or similar')
                 sys.exit(1)
-    # Stand and deliver
+    if verbose:
+        print()
     return polygons
+
+
+def get_field_value(feature: ogr.Feature, fld_name: str, default=None):
+    try:
+        return feature.GetField(fld_name)
+    except ValueError:
+        if default is ...:
+            raise
+        return default
 
 
 def coord_transform(from_sr_id, to_sr_id):
@@ -357,7 +412,8 @@ def weigh_shapefiles(
         sub_points_by_height: List[Optional[List[List[Point]]]],
         levels: int,
         sub_cell_area: float,
-        height_res: float
+        height_res: float,
+        verbose: bool,
 ) -> List[LabelledWeights]:
     """
     Reads shape_files and for each (polygon,height) pair, calculate a weight grid
@@ -371,10 +427,10 @@ def weigh_shapefiles(
 
         print('\nRead', shape_file)
 
-        polygons = read_shapefile(shape_file, tx)
+        polygons = read_shapefile(shape_file, tx, verbose)
         print(f'Found {len(polygons)} polygons')
-        for poly, region in zip(polygons, regions):
-            print('% 15s' % region, end='')
+        for i, poly, region in zip(count(), polygons, regions):
+            print('% 2s % 15s' % (i, region), end='')
             for height_index, sub_points in enumerate(sub_points_by_height):
                 weights = points_in_polygon(poly, sub_points, grid_shape)
                 area = np.sum(weights) * sub_cell_area
@@ -557,13 +613,16 @@ def plot_data(
 # MAIN FUNCTION
 
 def main():
-    config, args = read_config()
+    cfg = read_config()
 
     # Define the coordinate transformation needed for shapefiles
-    tx = coord_transform(config['shape_spatial_reference'], config['plot_spatial_reference'])
+    tx = coord_transform(cfg.shape_spatial_reference, cfg.plot_spatial_reference)
 
-    print('Read', args.geo)
-    with nc.Dataset(args.geo) as dataset:
+    geo_path = cfg.geo
+    geo_path = os.path.expandvars(geo_path)
+    geo_path = os.path.expanduser(geo_path)
+    print('Read', geo_path)
+    with nc.Dataset(geo_path) as dataset:
         xhgt = dataset.variables['HGT_M'][0]
         xlon = dataset.variables['XLONG_M'][0]
         xlat = dataset.variables['XLAT_M'][0]
@@ -572,32 +631,29 @@ def main():
         resolution = [dataset.DX.item(), dataset.DY.item()]
         grid_shape = xlon.shape
 
-    height_res = int(config.get('height_resolution', 10000))  # Default results in a single band
-    sub_res = config['sub_sampling']
+    height_res = int(cfg.get('height_resolution', 10000))  # Default results in a single band
+    sub_res = cfg.sub_sampling
     sub_levels = sub_res ** 2
     sub_cell_area = resolution[0] * resolution[1] / sub_levels / 1000000
     sub_points = sub_sample_grid(xlon, xlat, sub_res)
     sub_heights = interpolate_height(height, sub_res)
     sub_points_by_height = split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res)
 
-    labelled_weights = weigh_shapefiles(config['shape_files'], tx, grid_shape, sub_points_by_height, sub_levels, sub_cell_area, height_res)
+    labelled_weights = weigh_shapefiles(cfg.shape_files, tx, grid_shape, sub_points_by_height, sub_levels, sub_cell_area, height_res, cfg.verbose)
     collated_weights = collate_weights(labelled_weights)
 
-    write_weights(args.simulation,
+    write_weights(cfg.simulation,
                   collated_weights,
-                  config['weight_file_pattern'],
-                  config['region_height_key_pattern'],
-                  config['region_total_key_pattern'])
+                  cfg.weight_file_pattern,
+                  cfg.region_height_key_pattern,
+                  cfg.region_total_key_pattern)
 
-    if config['plot_file_pattern']:
-        plot_data(args.simulation, collated_weights,
+    if cfg.plot_file_pattern:
+        plot_data(cfg.simulation, collated_weights,
                   xlat, xlon, xhgt, height_res,
-                  config['plot_file_pattern'],
-                  config['plot_title_pattern'])
+                  cfg.plot_file_pattern,
+                  cfg.plot_title_pattern)
 
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        print(e)
+    main()
