@@ -30,38 +30,45 @@ simulations:
   # RÁV 2 Dataset at 10km and 2km resolution
   wrf-gfs-10:
     sub_sampling: 10
-    wrfouts: ~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d01_*_reduced.nc
-    geo: ~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d01.nc
+    wrfouts: '~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d01_*_reduced.nc'
+    wrfout_tpl: '~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d01_{start_date:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+    geo: '~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d01.nc'
   wrf-gfs-02:
     sub_sampling: 2
-    wrfouts: ~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d02_*_reduced.nc
-    geo: ~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d02.nc
+    wrfouts: '~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d02_*_reduced.nc'
+    wrfout_tpl: '~/Downloads/simulations/RAV2:GFS_2014-15/wrfout_d02_{start_date:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+    geo: '~/Downloads/simulations/RAV2:GFS_2014-15/geo_em.d02.nc'
 
   # RÁV 2.5 Dataset at 5km and 1km resolution
   wrf-gfs-05:
     sub_sampling: 5
-    wrfouts: ~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d01_*_reduced.nc
-    geo: ~/Downloads/simulations/RAV2_5-1km:2014-15/geo_em.d01.nc
+    wrfouts: '~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d01_*_reduced.nc'
+    wrfouts_tpl: '~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d01_{start_date:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+    geo: '~/Downloads/simulations/RAV2_5-1km:2014-15/geo_em.d01.nc'
   #wrf-gfs-01:
   #  sub_sampling: 1
-  #  wrfouts: ~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d02_*_reduced.nc
-  #  geo: ~/Downloads/simulations/RAV2_5-1km:2014-15/geo_em.d02.nc
+  #  wrfouts: '~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d02_*_reduced.nc'
+  #  wrfouts_tpl: '~/Downloads/simulations/RAV2_5-1km:2014-15/wrfout_d02_{start_date:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+  #  geo: '~/Downloads/simulations/RAV2_5-1km:2014-15/geo_em.d02.nc'
 
   # WRF ERA-Interim down scaling at 10km and 2km resolution
   wrf-era-10:
     sub_sampling: 10
-    wrfouts: ~/Downloads/simulations/RAV2:2014-15/wrfout_d01_*_reduced.nc
-    geo: ~/Downloads/simulations/RAV2:2014-15/geo_em.d01.nc
+    wrfouts: '~/Downloads/simulations/RAV2:2014-15/wrfout_d01_*_reduced.nc'
+    wrfouts_tpl: '~/Downloads/simulations/RAV2:2014-15/wrfout_d01_*_reduced.nc'
+    geo: '~/Downloads/simulations/RAV2:2014-15/geo_em.d01.nc'
   wrf-era-02:
     sub_sampling: 2
-    wrfouts: ~/Downloads/simulations/RAV2:2014-15/wrfout_d02_*_reduced.nc
-    geo: ~/Downloads/simulations/RAV2:2014-15/geo_em.d02.nc
+    wrfouts: '~/Downloads/simulations/RAV2:2014-15/wrfout_d02_*_reduced.nc'
+    wrfouts_tpl: '~/Downloads/simulations/RAV2:2014-15/wrfout_d02_{start_date:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+    geo: '~/Downloads/simulations/RAV2:2014-15/geo_em.d02.nc'
 
   # WRF classic-WOD operational forecasts at 3km resolution
   wrf-gfs-03-fc:
     sub_sampling: 3
-    wrfouts: ~/Downloads/simulations/island-3/wrfout_d02_*_reduced.nc
-    geo: ~/Downloads/simulations/island-3/geo_em.d02.nc
+    wrfouts: '~/Downloads/simulations/island-3/wrfout_d02_*_reduced.nc'
+    wrfouts_tpl: '~/Downloads/simulations/island-3/wrfout_d02_{start_date:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+    geo: '~/Downloads/simulations/island-3/geo_em.d02.nc'
     file_steps: [6, 12]  # Use steps 6..12 from each file.
 
 

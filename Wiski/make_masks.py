@@ -70,10 +70,13 @@ class ConfigGetter:
         return value
 
     def __getattribute__(self, name: str) -> Any:
-        if name == 'get' or name.startswith('_'):
+        if name in ('get', 'error') or name.startswith('_'):
             return super().__getattribute__(name)
         else:
             return self.get(name)
+
+    def error(self, message: str):
+        self._parser.error(message)
 
 
 def read_config() -> ConfigGetter:
