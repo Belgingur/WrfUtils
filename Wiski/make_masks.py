@@ -132,22 +132,22 @@ def sub_sample_grid(xlon, xlat, subres):
     """
     # print('Create %s*%s sub-sampling points in each of %s*%s cells' %
     # (subres, subres, xlon.shape[0], xlon.shape[1]))
-    i_lim, j_lim = xlon.shape
+    j_lim, i_lim = xlon.shape
     sub_points = []
-    for i in range(0, i_lim):
-        for j in range(0, j_lim):
-            # Find lat0,lon0 centre of grid cell i,j
+    for j in range(0, j_lim):
+        for i in range(0, i_lim):
+            # Find lat0,lon0 centre of grid cell j,i
             # and d_lon, d_lat the sub-sampling steps
-            i1, i2 = max(i - 1, 0), min(i + 1, i_lim - 1)  # b is before, a is after
-            j1, j2 = max(j - 1, 0), min(j + 1, j_lim - 1)
+            i1, i2 = max(j - 1, 0), min(j + 1, j_lim - 1)  # b is before, a is after
+            j1, j2 = max(i - 1, 0), min(i + 1, i_lim - 1)
 
-            lon0, lat0 = xlon[i, j], xlat[i, j]
-            di_lon_1 = (xlon[i, j] - xlon[i, j1]) / subres / (j - j1) if j > j1 else NaN
-            di_lon_2 = (xlon[i, j2] - xlon[i, j]) / subres / (j2 - j) if j2 > j else NaN
-            dj_lat_1 = (xlat[i, j] - xlat[i1, j]) / subres / (i - i1) if i > i1 else NaN
-            dj_lat_2 = (xlat[i2, j] - xlat[i, j]) / subres / (i2 - i) if i2 > i else NaN
+            lon0, lat0 = xlon[j, i], xlat[j, i]
+            di_lon_1 = (xlon[j, i] - xlon[j, j1]) / subres / (i - j1) if i > j1 else NaN
+            di_lon_2 = (xlon[j, j2] - xlon[j, i]) / subres / (j2 - i) if j2 > i else NaN
+            dj_lat_1 = (xlat[j, i] - xlat[i1, i]) / subres / (j - i1) if j > i1 else NaN
+            dj_lat_2 = (xlat[i2, i] - xlat[j, i]) / subres / (i2 - j) if i2 > j else NaN
             # print('% 3.0f % 3.0f\t% 2.4f % 2.4f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
-            # (i, j, lat0, lon0, dj_lat_1, di_lon_1, dj_lat_2, di_lon_2))
+            # (j, i, lat0, lon0, dj_lat_1, di_lon_1, dj_lat_2, di_lon_2))
 
             # Make an array of subres*subres evenly spaced points inside cell
             points = []
@@ -166,22 +166,22 @@ def interpolate_height(height, subres):
     print('\nCreate %s×%s supersampled cells in each of %s×%s cells' %
           (subres, subres, height.shape[0], height.shape[1]))
 
-    i_lim, j_lim = height.shape
+    j_lim, i_lim = height.shape
     sub_heights = []
-    for i in range(0, i_lim):
-        for j in range(0, j_lim):
-            # Find lat0,lon0 centre of grid cell i,j
+    for j in range(0, j_lim):
+        for i in range(0, i_lim):
+            # Find lat0,lon0 centre of grid cell j,i
             # and d_lon, d_lat the sub-sampling steps
-            i1, i2 = max(i - 1, 0), min(i + 1, i_lim - 1)  # b is before, a is after
-            j1, j2 = max(j - 1, 0), min(j + 1, j_lim - 1)
+            i1, i2 = max(j - 1, 0), min(j + 1, j_lim - 1)  # b is before, a is after
+            j1, j2 = max(i - 1, 0), min(i + 1, i_lim - 1)
 
-            hgt0 = height[i, j]
-            di_hgt_1 = (height[i, j] - height[i, j1]) / subres / (j - j1) if j > j1 else NaN
-            di_hgt_2 = (height[i, j2] - height[i, j]) / subres / (j2 - j) if j2 > j else NaN
-            dj_hgt_1 = (height[i, j] - height[i1, j]) / subres / (i - i1) if i > i1 else NaN
-            dj_hgt_2 = (height[i2, j] - height[i, j]) / subres / (i2 - i) if i2 > i else NaN
+            hgt0 = height[j, i]
+            di_hgt_1 = (height[j, i] - height[j, j1]) / subres / (i - j1) if i > j1 else NaN
+            di_hgt_2 = (height[j, j2] - height[j, i]) / subres / (j2 - i) if j2 > i else NaN
+            dj_hgt_1 = (height[j, i] - height[i1, i]) / subres / (j - i1) if j > i1 else NaN
+            dj_hgt_2 = (height[i2, i] - height[j, i]) / subres / (i2 - j) if i2 > j else NaN
             # print('% 3.0f % 3.0f\t% 4.4f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
-            # (i, j, hgt0, di_hgt_1, di_hgt_2, dj_hgt_1, dj_hgt_2))
+            # (j, i, hgt0, di_hgt_1, di_hgt_2, dj_hgt_1, dj_hgt_2))
 
             # Make an array of subres*subres evenly spaced points inside cell
             heights = []
@@ -400,10 +400,10 @@ def points_in_polygon(poly: Polygon, sub_points_per_cell: Sequence[Sequence[Poin
 
     # Step through elements in grid to evaluate if in the study area
     weights = np.zeros(shape[0] * shape[1], dtype=int)
-    for i, sub_points in enumerate(sub_points_per_cell):
+    for n, sub_points in enumerate(sub_points_per_cell):
         for point in sub_points:
             if point.within(poly):
-                weights[i] += 1
+                weights[n] += 1
     weights = weights.reshape(shape)
     return weights
 
