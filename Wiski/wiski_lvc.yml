@@ -4,26 +4,24 @@ shape_spatial_reference: 3057  # isnet
 plot_spatial_reference: 4326  # wgs84 lat/lon
 
 shape_files:
-  shapefiles/Bla_isn93.shp:
-    - blondulon
-  shapefiles/THJ_KVI.shp:
-    - kvislarveita
-  shapefiles/Fljotsdalsstod_vatnasvid.shp:
-    - ufsarlon
-    - halslon
-    - hraunaveita
-    - hraunaveita
-    - hraunaveita
-    - hraunaveita
-  shapefiles/Thj_Sul_Bud.shp:
-    - sultartangi
-    - budarhals
-  shapefiles/THJ_HAG.shp:
-    - hagongulon
-  shapefiles/TU_SIG.shp:
-    - tungnaa
-    - thorisvatn
-    - tungnaa
+  shapefiles_lvc/Hofs-outline_2008Poly.shp: 'Hofsjökull'
+  shapefiles_lvc/VaJadarPoly.shp: 'Vatnajökull'
+  #shapefiles_lvc/VaJadar.shp:
+  shapefiles_lvc/LaJokull-2015-maiWVPoly.shp: 'Langjökull'
+  #shapefiles_lvc/LaJokull-2015-maiWV.shp:
+
+
+periods:
+  Hofsjökull:
+    from_time: '2014-10-08'  # Must be quited since otherwise yaml turns it to a datetime.time instance
+    to_time: '2015-05-08'
+  Vatnajökull:
+    Begin: '2014-10-10'
+    to_time: '2015-05-10'
+  Langjökull:
+    Begin: '2014-10-24'
+    to_time: '2015-04-30'
+
 
 simulations:
 

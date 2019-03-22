@@ -13,7 +13,7 @@ import os
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from itertools import cycle, count
+from itertools import cycle, count, repeat
 from math import isnan, sqrt
 from typing import List, Dict, Tuple, Optional, Sequence, Any, Callable
 
@@ -232,40 +232,73 @@ def split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res):
     return ranges
 
 
+def print_shape(indent, shape, name='shape'):
+    s = str(shape)
+    if len(s) > 60:
+        s = s[:40] + ' … ' + s[-20:]
+    print(indent, name + ':', type(shape), s)
+
+
+def handle_shape(indent, polygons: List[Polygon], shape: ogr.Geometry, verbose: bool):
+    if verbose:
+        print_shape(indent, shape)
+    try:
+        if isinstance(shape, ogr.Geometry):
+
+            # Try to get a polygon from the geometry's points
+            gtype = shape.GetGeometryType()
+            if gtype == 2:
+                try:
+                    points: List[Point] = shape.GetPoints()
+                    if points is not None and len(points) > 0:
+                        polygon = Polygon(points)
+                        if verbose:
+                            print(indent, '→ polygon with ', len(points), 'points')
+                        polygons.append(polygon)
+                except Exception as e:
+                    print(indent, 'exception making polygon', e)
+
+            elif gtype in (ogr.wkbPolygon, ogr.wkbMultiPolygon):
+                ...
+            else:
+                print('Unexpected gtype', gtype)
+
+            sub_count = shape.GetGeometryCount()
+            # print(indent, "sub_count:", sub_count)
+            for sub_idx in range(sub_count):
+                sub_shape: ogr.Geometry = shape.GetGeometryRef(sub_idx)
+                handle_shape(indent + '    ', polygons, sub_shape, verbose)
+                continue
+
+        else:
+            print(indent, 'It is an unexpected', type(shape))
+
+    except Exception as e:
+        print(indent, 'failed!', e)
+        raise
+
+
 def read_shapefile(shapefile: str, tx: CoordinateTransformation, verbose: bool) -> List[Polygon]:
     """
     Reads a shapefile and returns a list of polygons, each of which is a list of points.
     """
     # Now open the shapefile and start by reading the only layer and
-    # the first feature, as well as its geometry.
+    # the first feature, as well as its shape.
     source: ogr.DataSource = ogr.Open(shapefile)
     layer: ogr.Layer = source.GetLayer()
     counts: int = layer.GetFeatureCount()
     polygons = []
 
-    if verbose:
-        print("features:")
     for c in range(counts):
         try:
             feature: ogr.Feature = layer.GetFeature(c)
             # if get_field_value(feature, 'catagory') == 'intrnl_rock':
-            #     continue
+            #    continue
 
             # Convert feature into a polygon in the target projection
-            geometry: ogr.Geometry = feature.GetGeometryRef()
-            geometry.Transform(tx)
-            points: List[Point] = geometry.GetGeometryRef(0).GetPoints()
-            polygon = Polygon(points)
-
-            if verbose:
-                bounds = polygon.bounds
-                bounds = f'({bounds[1]:0.3f},{bounds[0]:0.3f}) - ({bounds[3]:0.3f},{bounds[2]:0.3f})'
-                print('  ', c, bounds, end='')
-                for i, k in enumerate(feature.keys()):
-                    print(f'\t{k}={feature.GetField(i)}', end='')
-                print()
-
-            polygons.append(polygon)
+            shape: ogr.Geometry = feature.GetGeometryRef()
+            shape.Transform(tx)
+            handle_shape('    ', polygons, shape, verbose)
 
         except TypeError as te:
             if 'Geometry_Transform' in str(te):
@@ -427,6 +460,8 @@ def weigh_shapefiles(
     """
     results = []
     for shape_file, regions in shape_files.items():
+        if isinstance(regions, str):
+            regions = repeat(regions)
 
         print('\nRead', shape_file)
 
