@@ -686,10 +686,10 @@ def main():
                   cfg.region_height_key_pattern,
                   cfg.region_total_key_pattern)
 
-    if cfg.plot_file_pattern:
+    if cfg.weight_plot_file_pattern:
         plot_data(cfg.simulation, collated_weights,
                   xlat, xlon, xhgt, height_res,
-                  cfg.plot_file_pattern,
+                  cfg.weight_plot_file_pattern,
                   cfg.weight_plot_title_pattern)
 
 
