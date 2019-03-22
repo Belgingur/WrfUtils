@@ -59,12 +59,12 @@ variables:
   - T2        # [°C]    Hiti í 2 metra hæð (e. temperature at 2m)
   - WSPEED    # [m/s]   Vindhraði ( sqrt(U10²+V10²) )
   - PSFC      # [Pa]    Loftþrýstingur við yfirborð (e. surface pressure)
-  - GLW       # [W/m²]  Langbylgjuinngeislun við yfirborð (e. downward long wave flux at ground surface)
+  #- GLW       # [W/m²]  Langbylgjuinngeislun við yfirborð (e. downward long wave flux at ground surface)
   - SWDOWN    # [W/m²]  Stuttbylgjuinngeislun við yfirborð (e. downward short wave flux at ground surface)
-  - SNOW      # [kg/m²] Uppsafnaður snjór (SNOW)
+  #- SNOW      # [kg/m²] Uppsafnaður snjór (SNOW)
 
   # All precipitation values are per step. Summing over time gives accumulated precipitation.
   - PRECIP    # [kg/m²] Úrkoma (regn,slydda,snjór)
-  - RAINFALL  # [kg/m²] Úrkoma sem fellur sem regn (PRECIP | SR<0.4)
-  - SLEETFALL # [kg/m²] Úrkoma sem fellur hvorki sem regn né snjór (PRECIP | 0.4<=SR<0.7)
-  - SNOWFALL  # [kg/m²] Úrkoma sem fellur sem snjór (PRECIP | 0.7<=SR)
+  #- RAINFALL  # [kg/m²] Úrkoma sem fellur sem regn (PRECIP | SR<0.4)
+  #- SLEETFALL # [kg/m²] Úrkoma sem fellur hvorki sem regn né snjór (PRECIP | 0.4<=SR<0.7)
+  #- SNOWFALL  # [kg/m²] Úrkoma sem fellur sem snjór (PRECIP | 0.7<=SR)

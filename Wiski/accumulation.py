@@ -59,7 +59,7 @@ def read_config() -> ConfigGetter:
 
 
 def pick_period(cfg, region, key: str):
-    dt = getattr(cfg._args, key)
+    dt: datetime = getattr(cfg._args, key)
     if dt is not None:
         return dt
 
@@ -89,8 +89,7 @@ def read_accumulation_in_file(path: str, to_time: datetime, from_time: datetime 
     with nc.Dataset(path) as ds:
         times = read_timestamps(ds)
         to_idx = times.index(to_time)
-        if verbose:
-            print(f'read step {to_idx} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
+        print(f'read step {to_idx} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
         to_accumulation = ds.variables['RAINC'][to_idx] + ds.variables['RAINNC'][to_idx]
         # print("to_accumulation:", np.round(np.sum(to_accumulation)))  # total mm*cells
 
@@ -107,8 +106,8 @@ def read_accumulation_in_file(path: str, to_time: datetime, from_time: datetime 
 
 def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime, verbose: bool) -> np.ndarray:
     """ Read accumulation between timestamps in the configured data """
-    if from_time > to_time:
-        cfg.error(f'Empty accumulation period {from_time :%Y-%m-%dT%H:%M:%S} … {to_time :%Y-%m-%dT%H:%M:%S}')
+    if from_time >= to_time:
+        cfg.error(f'Empty accumulation period {from_time :%Y-%m-%dT%H:%M} … {to_time :%Y-%m-%dT%H:%M}')
 
     files = set()
 
@@ -268,9 +267,11 @@ def main():
     for raw in regions_and_weights:
         # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
         print('\n────────────────────────────────────────────────────────────────────────────────')
-        print('REGION:', raw.key)
+        print('REGION:', raw.key, '\n')
         from_time = pick_period(cfg, raw.region, 'from_time')
         to_time = pick_period(cfg, raw.region, 'to_time')
+        days = (to_time - from_time).total_seconds() / (60 * 60 * 24)
+        print(f'period: {from_time :%Y-%m-%dT%H:%M} … {to_time :%Y-%m-%dT%H:%M} is {days:g} days')
         accumulation = read_accumulation(cfg, to_time, from_time, cfg.verbose)
         print(f'\naccumulation on forecast domain: {np.average(accumulation):0.1f} mm')
 
