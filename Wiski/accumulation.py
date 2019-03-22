@@ -66,7 +66,6 @@ def pick_period(cfg, region, key: str):
     period_conf = cfg.get('periods', {}).get(region, {})
     dt = period_conf.get(key)
     dt = parse_time(dt)
-    dt = UTC.localize(dt)
     return dt
 
 

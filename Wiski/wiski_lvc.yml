@@ -28,7 +28,7 @@ simulations:
   # RÁV 2 Dataset at 10km and 2km resolution
   wrf-gfs-10:
     sub_sampling: 10
-    geo:  /riv/scrooge/RAV2/GFS_2014-15/geo_em.d01.nc'
+    geo:  '/riv/scrooge/RAV2/GFS_2014-15/geo_em.d01.nc'
     wrfouts: '/riv/scrooge/RAV2/GFS_2014-15/wrfout_d01_*_reduced.nc'
     wrfout_tpl: '/riv/scrooge/RAV2/GFS_2014-15/wrfout_d01_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
   wrf-gfs-02:
