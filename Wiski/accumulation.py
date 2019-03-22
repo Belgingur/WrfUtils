@@ -22,7 +22,7 @@ from mpl_toolkits.basemap import Basemap
 from pytz import UTC
 
 from make_masks import ConfigGetter
-from wiski import read_weights, read_timestamps
+from wiski import read_weights, read_timestamps, RegionAndWeights
 
 np.set_printoptions(precision=3, threshold=10000, linewidth=125)
 
@@ -79,16 +79,18 @@ def read_geo_shape(cfg: ConfigGetter):
         lats = ds.variables['XLAT_M'][0]
         lons = ds.variables['XLONG_M'][0]
         hgts = ds.variables['HGT_M'][0]
+        print('shape', lats.shape)
 
         return lats, lons, hgts
 
 
-def read_accumulation_in_file(path: str, to_time: datetime, from_time: datetime = None):
+def read_accumulation_in_file(path: str, to_time: datetime, from_time: datetime = None, verbose=False):
     """ Read accumulation between timestamps in the given data file. If to_time is not given, return accumulation from start of simulation. """
     with nc.Dataset(path) as ds:
         times = read_timestamps(ds)
         to_idx = times.index(to_time)
-        print(f'read step {to_idx} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
+        if verbose:
+            print(f'read step {to_idx} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
         to_accumulation = ds.variables['RAINC'][to_idx] + ds.variables['RAINNC'][to_idx]
         # print("to_accumulation:", np.round(np.sum(to_accumulation)))  # total mm*cells
 
@@ -103,7 +105,7 @@ def read_accumulation_in_file(path: str, to_time: datetime, from_time: datetime 
         return accumulation
 
 
-def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime) -> np.ndarray:
+def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime, verbose: bool) -> np.ndarray:
     """ Read accumulation between timestamps in the configured data """
     if from_time > to_time:
         cfg.error(f'Empty accumulation period {from_time :%Y-%m-%dT%H:%M:%S} … {to_time :%Y-%m-%dT%H:%M:%S}')
@@ -124,9 +126,10 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime)
     if len(files) == 0:
         print('No wrfout files found')
         sys.exit(1)
-    print(f'\nFound {len(files)} wrfout files')
-    print(f'from time: {from_time:%Y-%m-%dT%H:%M}')
-    print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
+    if verbose:
+        print(f'\nFound {len(files)} wrfout files')
+        print(f'from time: {from_time:%Y-%m-%dT%H:%M}')
+        print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
 
     wrfout_tpl = cfg.wrfout_tpl
     wrfout_tpl = os.path.expandvars(wrfout_tpl)
@@ -145,12 +148,12 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime)
     file_steps = cfg.get('file_steps', None)
     if file_steps is None:
         if from_file == to_file:
-            data = read_accumulation_in_file(from_file, from_time, to_time)
+            data = read_accumulation_in_file(from_file, from_time, to_time, verbose)
             print("data:", np.sum(data))
             return data
         else:
-            to_data = read_accumulation_in_file(to_file, to_time)
-            from_data = read_accumulation_in_file(from_file, from_time)
+            to_data = read_accumulation_in_file(to_file, to_time, None, verbose)
+            from_data = read_accumulation_in_file(from_file, from_time, None, verbose)
             data = to_data - from_data
             if cfg.verbose:
                 print("  to_data:", np.round(np.sum(to_data), 2))
@@ -219,25 +222,35 @@ def pre_plot(m: Basemap, lat00: float, lon00: float, lat11: float, lon11: float,
     pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
 
 
-def plot(
-        cfg: ConfigGetter,
-        region: str,
-        lats: np.ndarray, lons: np.ndarray, hgts: np.ndarray,
-        accumulation: np.ndarray
-):
-    lat0, lat1 = lats[0, 0], lats[-1, -1]
-    lon0, lon1 = lons[0, 0], lons[-1, -1]
+def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: np.ndarray, weighed: np.ndarray):
+    # Crop domain shape vars to slightly larger than the weight matrix
+    pad = 1
+    j0 = raw.offset[0] - pad
+    i0 = raw.offset[1] - pad
+    j1 = j0 + raw.weight_grid.shape[0] + 2 * pad
+    i1 = i0 + raw.weight_grid.shape[1] + 2 * pad
+    crop_lats = lats[j0:j1, i0:i1]
+    crop_lons = lons[j0:j1, i0:i1]
+    crop_hgts = hgts[j0:j1, i0:i1]
+
+    # Pad weighted data to same size as above
+    padded = np.zeros(shape=crop_lats.shape)
+    padded[pad:-pad, pad:-pad] = weighed
+
+    lat0, lat1 = crop_lats[0, 0], crop_lats[-1, -1]
+    lon0, lon1 = crop_lons[0, 0], crop_lons[-1, -1]
     m = setup_basemap(lat0, lon0, lat1, lon1)
-    xs, ys = m(lons, lats)
+    xs, ys = m(crop_lons, crop_lats)
 
-    pre_plot(m, lat0, lon0, lat1, lon1, xs, ys, hgts)
+    pre_plot(m, lat0, lon0, lat1, lon1, xs, ys, crop_hgts)
 
-    m.contourf(xs, ys, accumulation, cmap=CMAP, levels=100)
+    m.contourf(xs, ys, padded, cmap=CMAP, levels=100)
     m.plot(xs, ys, '.', ms=2, color='k')
 
-    plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=region)
-    plot_file = cfg.accumulation_plot_file_pattern.format(simulation=cfg.simulation, region=region)
-    print('Save', plot_file)
+    # Add title and save
+    plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=raw.region)
+    plot_file = cfg.accumulation_plot_file_pattern.format(simulation=cfg.simulation, region=raw.region)
+    print('\nsave', plot_file)
     pylab.title(plot_title)
     pylab.savefig(plot_file, pad_inches=0.2, bbox_inches='tight')
     pylab.clf()
@@ -248,16 +261,18 @@ def main():
     cfg = read_config()
     sub_levels: int = cfg.sub_sampling ** 2
 
+    print('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    print('SETUP:', cfg.simulation)
     regions_and_weights = read_weights(cfg.weight_file_pattern, cfg.simulation, sub_levels, only_all_heights=True)
     lats, lons, hgts = read_geo_shape(cfg)
     for raw in regions_and_weights:
         # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
-        print('\n___________________________________________________________________')
+        print('\n────────────────────────────────────────────────────────────────────────────────')
         print('REGION:', raw.key)
         from_time = pick_period(cfg, raw.region, 'from_time')
         to_time = pick_period(cfg, raw.region, 'to_time')
-        accumulation = read_accumulation(cfg, to_time, from_time)
-        print("accumulation:", np.round(np.sum(accumulation)), accumulation.shape)
+        accumulation = read_accumulation(cfg, to_time, from_time, cfg.verbose)
+        print(f'\naccumulation on forecast domain: {np.average(accumulation):0.1f} mm')
 
         # For plotting crop accumulation to the size of weight_grid and multiply
         j0 = raw.offset[0]
@@ -266,24 +281,11 @@ def main():
         i1 = i0 + raw.weight_grid.shape[1]
         crop_accn = accumulation[j0:j1, i0:i1]
         weighed = crop_accn * raw.weight_grid / sub_levels  # [j,i]
+        avg_over_area = np.sum(weighed) / raw.total_weight
+        print(f'accumulation on {raw.region} {avg_over_area:0.1f} mm')
 
-        pad = 1
-        j0p = j0 - pad
-        i0p = i0 - pad
-        i1p = i1 + pad
-        j1p = j1 + pad
-        crop_lats = lats[j0p:j1p:, i0p:i1p:]
-        crop_lons = lons[j0p:j1p:, i0p:i1p:]
-        crop_hgts = hgts[j0p:j1p:, i0p:i1p:]
-        padded = np.zeros(shape=crop_lats.shape)
-        padded[pad:-pad, pad:-pad] = weighed
-        plot(
-            cfg, raw.region,
-            crop_lats, crop_lons, crop_hgts,
-            padded
-        )
-        sum_over_area = np.sum(weighed)
-        print("sum_over_area:", round(sum_over_area, 2))
+        plot(cfg, raw, lats, lons, hgts, weighed)
+
 
 
 if __name__ == '__main__':
