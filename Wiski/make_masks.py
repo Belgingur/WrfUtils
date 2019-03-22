@@ -595,9 +595,9 @@ def pre_plot(m, x, y, xhgt, height_res):
     return m
 
 
-def post_plot(plot_file_pattern: str, plot_title_pattern: str, simulation: str, law: LabelledWeights):
+def post_plot(plot_file_pattern: str, weight_plot_title_pattern: str, simulation: str, law: LabelledWeights):
     law_dict = dataclasses.asdict(law)
-    plot_title = plot_title_pattern.format(simulation=simulation, **law_dict)
+    plot_title = weight_plot_title_pattern.format(simulation=simulation, **law_dict)
     plot_file = plot_file_pattern.format(simulation=simulation, **law_dict)
     print(' ', plot_file)
     pylab.title(plot_title)
@@ -614,7 +614,7 @@ def plot_data(
         xhgt: np.ndarray,
         height_res: float,
         plot_file_pattern: str,
-        plot_title_pattern: str
+        weight_plot_title_pattern: str
 ):
     print('\nPlot maps for', simulation)
     # symbols = ('o', '*', '+', 'x')
@@ -645,7 +645,7 @@ def plot_data(
                     size = sizes[style] * sqrt((level + 1) / law.levels) / shrink
                     m.plot(x[mask], y[mask], marker, ms=size, mec=color, alpha=3 / 4)
 
-        post_plot(plot_file_pattern, plot_title_pattern, simulation, law)
+        post_plot(plot_file_pattern, weight_plot_title_pattern, simulation, law)
 
 
 # MAIN FUNCTION
@@ -690,7 +690,7 @@ def main():
         plot_data(cfg.simulation, collated_weights,
                   xlat, xlon, xhgt, height_res,
                   cfg.plot_file_pattern,
-                  cfg.plot_title_pattern)
+                  cfg.weight_plot_title_pattern)
 
 
 if __name__ == '__main__':

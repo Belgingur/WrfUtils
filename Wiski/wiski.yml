@@ -39,10 +39,10 @@ region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offs
 weight_file_pattern: 'weights.npz'
 
 # Plot regions to these files. Ges key from regional_total_key_pattern
-plot_file_pattern: 'plots/{region}.svg'
+weight_plot_file_pattern: 'plots/{region}.svg'
 
 # Pattern to construct title for plots
-plot_title_pattern: '{region}'
+weight_plot_title_pattern: '{region}'
 
 # How many steps to skip from beginning of wrfout file.
 spinup_steps: 3
