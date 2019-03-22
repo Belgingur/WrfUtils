@@ -16,10 +16,10 @@ periods:
     from_time: '2014-10-08'  # Must be quited since otherwise yaml turns it to a datetime.time instance
     to_time: '2015-05-08'
   Vatnajökull:
-    Begin: '2014-10-10'
+    from_time: '2014-10-10'
     to_time: '2015-05-10'
   Langjökull:
-    Begin: '2014-10-24'
+    from_time: '2014-10-24'
     to_time: '2015-04-30'
 
 
