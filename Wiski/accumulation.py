@@ -157,15 +157,19 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
         sys.exit(1)
     if verbose:
         print(f'\nFound {len(files)} wrfout files')
-        print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
         print(f'from time: {from_time:%Y-%m-%dT%H:%M}')
+        print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
 
     from_step, step_to = cfg.get('file_steps', (None, None))
     if from_step:
-        from_time_file = from_time - timedelta(minutes=from_step * cfg.step_length)
-        print(f'from time: {from_time_file:%Y-%m-%dT%H:%M} with spinup')
+        spinup = timedelta(minutes=from_step * cfg.step_length)
+        from_time_file = from_time - spinup
+        to_time_file = to_time - spinup
+        print(f'\nfrom time: {from_time_file:%Y-%m-%dT%H:%M} with spinup')
+        print(f'  to time: {to_time_file:%Y-%m-%dT%H:%M} with spinup')
     else:
         from_time_file = from_time
+        to_time_file = to_time
 
     wrfout_tpl = cfg.wrfout_tpl
     wrfout_tpl = os.path.expandvars(wrfout_tpl)
@@ -173,7 +177,7 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
 
     # We need the last files that start on or before from_time and to_time
     from_idx, from_file = last_before(cfg.error, wrfout_tpl.format(start_time=from_time_file), files)
-    to_idx, to_file = last_before(cfg.error, wrfout_tpl.format(start_time=to_time), files)
+    to_idx, to_file = last_before(cfg.error, wrfout_tpl.format(start_time=to_time_file), files)
 
     if cfg.verbose:
         print('files:')
