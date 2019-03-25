@@ -10,7 +10,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime
+from builtins import reversed
+from datetime import datetime, timedelta
 from glob import glob
 from typing import List, Tuple, Callable
 
@@ -18,6 +19,7 @@ import netCDF4 as nc
 import numpy as np
 import pylab
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.dates import SEC_PER_HOUR
 from mpl_toolkits.basemap import Basemap
 from pytz import UTC
 
@@ -83,28 +85,28 @@ def read_geo_shape(cfg: ConfigGetter):
         return lats, lons, hgts
 
 
-def read_accumulation_in_file(path: str, to_time: datetime, from_time: datetime = None, verbose=False):
+def read_accumulation_time_to_time(path: str, to_time: datetime, from_time: datetime = None, verbose=False):
     """ Read accumulation between timestamps in the given data file. If to_time is not given, return accumulation from start of simulation. """
     with nc.Dataset(path) as ds:
         times = read_timestamps(ds)
-        to_idx = times.index(to_time)
-        print(f'read step {to_idx} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
-        to_accumulation = ds.variables['RAINC'][to_idx] + ds.variables['RAINNC'][to_idx]
+        to_step = times.index(to_time)
+        print(f'read step {to_step} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
+        to_accumulation = ds.variables['RAINC'][to_step] + ds.variables['RAINNC'][to_step]
         # print("to_accumulation:", np.round(np.sum(to_accumulation)))  # total mm*cells
 
         if from_time is None:
             return to_accumulation
 
-        from_idx = times.index(from_time)
-        print(f'read step {from_idx} ({from_time:%Y-%m-%dT%H:%M}) of {path}')
-        from_accumulation = ds.variables['RAINC'][from_idx] + ds.variables['RAINNC'][from_idx]
+        from_step = times.index(from_time)
+        print(f'read step {from_step} ({from_time:%Y-%m-%dT%H:%M}) of {path}')
+        from_accumulation = ds.variables['RAINC'][from_step] + ds.variables['RAINNC'][from_step]
         # print("from_accumulation:", np.round(np.sum(from_accumulation)))  # total mm*cells
         accumulation = to_accumulation - from_accumulation
         return accumulation
 
 
 def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime, verbose: bool) -> np.ndarray:
-    """ Read accumulation between timestamps in the configured data """
+    """ Read accumulation between timestamps in the configured accumulation """
     if from_time >= to_time:
         cfg.error(f'Empty accumulation period {from_time :%Y-%m-%dT%H:%M} … {to_time :%Y-%m-%dT%H:%M}')
 
@@ -126,6 +128,7 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
         sys.exit(1)
     if verbose:
         print(f'\nFound {len(files)} wrfout files')
+        print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
         print(f'from time: {from_time:%Y-%m-%dT%H:%M}')
         print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
 
@@ -146,18 +149,18 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
     file_steps = cfg.get('file_steps', None)
     if file_steps is None:
         if from_file == to_file:
-            data = read_accumulation_in_file(from_file, from_time, to_time, verbose)
-            print("data:", np.sum(data))
-            return data
+            accumulation = read_accumulation_time_to_time(from_file, from_time, to_time, verbose)
+            print("accumulation:", np.sum(accumulation))
+            return accumulation
         else:
-            to_data = read_accumulation_in_file(to_file, to_time, None, verbose)
-            from_data = read_accumulation_in_file(from_file, from_time, None, verbose)
-            data = to_data - from_data
+            to_accumulation = read_accumulation_time_to_time(to_file, to_time, None, verbose)
+            from_accumulation = read_accumulation_time_to_time(from_file, from_time, None, verbose)
+            accumulation = to_accumulation - from_accumulation
             if cfg.verbose:
-                print("  to_data:", np.round(np.sum(to_data), 2))
-                print("from_data:", np.round(np.sum(from_data), 2))
-                print("     data:", np.round(np.sum(data), 2))
-            return data
+                print("from_accumulation:", np.round(np.sum(from_accumulation), 2))
+                print("  to_accumulation:", np.round(np.sum(to_accumulation), 2))
+                print("     accumulation:", np.round(np.sum(accumulation), 2))
+            return accumulation
 
     else:
         print('TODO: Implement reading a range of steps from each file')
@@ -285,7 +288,6 @@ def main():
         print(f'accumulation on {raw.region} {avg_over_area:0.1f} mm')
 
         plot(cfg, raw, lats, lons, hgts, weighed)
-
 
 
 if __name__ == '__main__':
