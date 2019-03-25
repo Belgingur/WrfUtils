@@ -105,6 +105,35 @@ def read_accumulation_time_to_time(path: str, to_time: datetime, from_time: date
         return accumulation
 
 
+def find_nearest(a, v):
+    return min(range(len(a)), key=lambda x: abs(a[x] - v))
+
+
+def read_accumulation_idx_to_time(path: str, min_from_time: datetime, from_step: int, to_time: datetime, verbose: bool) -> Tuple[np.ndarray, datetime]:
+    """
+    Read accumulation in file between from_time and to_time where from_time is the time at from_step
+    unless this is before min_from_time, then we start there instead.
+    """
+    with nc.Dataset(path) as ds:
+        times = read_timestamps(ds)
+        from_time = times[from_step]
+        if from_time < min_from_time:
+            from_step = find_nearest(times, min_from_time)
+            from_time = times[from_step]
+
+        to_step = find_nearest(times, to_time)
+
+        hours = (to_time - from_time).total_seconds() / SEC_PER_HOUR
+        hours = int(hours + 0.5)
+
+        to_accumulation = ds.variables['RAINC'][to_step] + ds.variables['RAINNC'][to_step]
+        from_accumulation = ds.variables['RAINC'][from_step] + ds.variables['RAINNC'][from_step]
+        accumulation = to_accumulation - from_accumulation
+
+        print(f'read {np.average(accumulation): 4.1f} mm at {from_time:%Y-%m-%dT%H:%M} +{hours:2d}h from {path}')
+        return accumulation, from_time
+
+
 def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime, verbose: bool) -> np.ndarray:
     """ Read accumulation between timestamps in the configured accumulation """
     if from_time >= to_time:
@@ -130,14 +159,20 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
         print(f'\nFound {len(files)} wrfout files')
         print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
         print(f'from time: {from_time:%Y-%m-%dT%H:%M}')
-        print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
+
+    from_step, step_to = cfg.get('file_steps', (None, None))
+    if from_step:
+        from_time_file = from_time - timedelta(minutes=from_step * cfg.step_length)
+        print(f'from time: {from_time_file:%Y-%m-%dT%H:%M} with spinup')
+    else:
+        from_time_file = from_time
 
     wrfout_tpl = cfg.wrfout_tpl
     wrfout_tpl = os.path.expandvars(wrfout_tpl)
     wrfout_tpl = os.path.expanduser(wrfout_tpl)
 
     # We need the last files that start on or before from_time and to_time
-    from_idx, from_file = last_before(cfg.error, wrfout_tpl.format(start_time=from_time), files)
+    from_idx, from_file = last_before(cfg.error, wrfout_tpl.format(start_time=from_time_file), files)
     to_idx, to_file = last_before(cfg.error, wrfout_tpl.format(start_time=to_time), files)
 
     if cfg.verbose:
@@ -146,8 +181,8 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
             print(f'    {file}', '← from' if i == from_idx else '← to' if i == to_idx else '')
         print()
 
-    file_steps = cfg.get('file_steps', None)
-    if file_steps is None:
+    if from_step is None:
+        # All files are from one simulation
         if from_file == to_file:
             accumulation = read_accumulation_time_to_time(from_file, from_time, to_time, verbose)
             print("accumulation:", np.sum(accumulation))
@@ -163,8 +198,13 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
             return accumulation
 
     else:
-        print('TODO: Implement reading a range of steps from each file')
-        sys.exit(1)
+        # Each file is from a different simulation so we need to accumulate over each and sum
+        ptr_time = to_time
+        accumulation = 0
+        for file in reversed(files[from_idx:to_idx + 1]):
+            accumulation_from_file, ptr_time = read_accumulation_idx_to_time(file, from_time, from_step, ptr_time, verbose)
+            accumulation += accumulation_from_file
+        return accumulation
 
 
 def last_before(error: Callable[[str], None], target: str, files: List[str]) -> Tuple[int, str]:

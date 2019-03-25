@@ -67,7 +67,9 @@ simulations:
     geo: '/riv/sarpur/daegurfluga/island-3/geo_em.d02.nc'
     wrfouts: '/riv/sarpur/daegurfluga/island-3/wrfout_d02_*_reduced.nc'
     wrfout_tpl: '/riv/sarpur/daegurfluga/island-3/wrfout_d02_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+
     file_steps: [6, 12]  # Use steps 6..12 from each file.
+    step_length: 60  # Length of each step in minutes
 
   # TODO: Harmonie re-analysis of ECMWF operational analysis
   # harmonie:
