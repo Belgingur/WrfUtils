@@ -91,13 +91,13 @@ region_height_key_pattern: '{region}_{min_height}_{max_height}:{offset[0]}_{offs
 weight_file_pattern: 'weights_{simulation}.npz'
 
 # Wiski: Plot regions to these files.
-weight_plot_file_pattern: 'plots/{region}_{simulation}_weights.png'
+weight_plot_file_pattern: 'plots/{region}_{simulation}_weights.svg'
 
 # Wiski: Pattern to construct title for plots
 weight_plot_title_pattern: '{region} [{simulation}] Weights'
 
 # Accumulate: Plot regions to these files.
-accumulation_plot_file_pattern: 'plots/{region}_{simulation}_accumulation.png'
+accumulation_plot_file_pattern: 'plots/{region}_{simulation}_accumulation.svg'
 
 # Accumulate: Pattern to construct title for plots
 accumulation_plot_title_pattern: '{region} [{simulation}] Accumulation'

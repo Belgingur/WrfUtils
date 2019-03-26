@@ -18,7 +18,6 @@ from typing import List, Tuple, Callable
 import netCDF4 as nc
 import numpy as np
 import pylab
-from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.dates import SEC_PER_HOUR
 from mpl_toolkits.basemap import Basemap
 from pytz import UTC
@@ -224,28 +223,48 @@ def setup_basemap(lat00: float, lon00: float, lat11: float, lon11: float):
                    resolution='i')
 
 
-A, B, C, D = (0.00, 0.25, 0.75, 1.00)
-CMAP = LinearSegmentedColormap('white-yellow-red', dict(
-    red=[
-        (A, 1.0, 1.0),
-        (B, 1.0, 1.0),
-        (C, 1.0, 1.0),
-        (D, 1.0, 0.0),
-    ],
-    green=[
-        (A, 1.0, 1.0),
-        (B, 1.0, 1.0),
-        (C, 0.0, 0.0),
-        (D, 0.0, 0.0),
-    ],
-    blue=[
-        (A, 1.0, 1.0),
-        (B, 0.0, 0.0),
-        (C, 0.0, 0.0),
-        (D, 0.5, 0.5),
-    ],
+LEVELS = [
+    -0.1000,  # 000015., 000025.,
+    000040., 000063.,
+    000100., 000150., 000250., 000400., 000630.,
+    001000., 001500., 002500., 004000., 006300.,
+    010000., 015000., 025000., 040000., 063000.,
+    100000., 150000., 250000., 400000., 630000.
+]
+COLORS = [
+    (1.000, 1.000, 1.000, 0.000),
+    (0.900, 1.000, 0.000, 0.150),
+    (0.600, 1.000, 0.300, 0.400),
+    (0.300, 0.900, 0.200, 1.000),
+    (0.000, 0.804, 0.000, 1.000),
+    (0.000, 0.545, 0.000, 1.000),
+    (0.031, 0.350, 0.050, 1.000),
+    (0.063, 0.306, 0.545, 1.000),
+    (0.118, 0.565, 1.000, 1.000),
+    (0.000, 0.698, 0.933, 1.000),
+    (0.000, 0.933, 0.933, 1.000),
+    (0.518, 0.392, 0.776, 1.000),
+    (0.537, 0.000, 0.537, 1.000),
+    (0.545, 0.000, 0.000, 1.000),
+    (0.804, 0.000, 0.000, 1.000),
+    (0.933, 0.251, 0.000, 1.000),
+    (1.000, 0.498, 0.000, 1.000),
+    (0.804, 0.522, 0.000, 1.000),
+    (1.000, 0.843, 0.000, 1.000),
+    (1.000, 1.000, 0.000, 1.000),
+    (1.000, 0.682, 0.725, 1.000),
+    (0.800, 0.300, 0.400, 1.000),
+    (0.600, 0.100, 0.200, 1.000)
+]
 
-), N=1024)
+COLORS_CONTOURS = [
+    tuple(x * 0.75 for x in c[0:3])
+    for c in COLORS
+]
+COLORS_LABELS = [
+    tuple(x * 0.3 for x in c[0:3])
+    for c in COLORS
+]
 
 
 def pre_plot(m: Basemap, lat00: float, lon00: float, lat11: float, lon11: float, xs: np.ndarray, ys: np.ndarray, hgts: np.ndarray):
@@ -283,8 +302,10 @@ def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: n
 
     pre_plot(m, lat0, lon0, lat1, lon1, xs, ys, crop_hgts)
 
-    m.contourf(xs, ys, padded, cmap=CMAP, levels=100)
-    m.plot(xs, ys, '.', ms=1, color='k')
+    m.contourf(xs, ys, padded, levels=LEVELS, colors=COLORS, extend='neither')
+    cs = m.contour(xs, ys, padded, levels=LEVELS, colors=COLORS_CONTOURS)
+    pylab.axes().clabel(cs, inline=1, fontsize=10, fmt='%g', colors=COLORS_LABELS)
+    m.plot(xs, ys, '.', ms=0.5, color=(0, 0, 0, 0.5))
 
     # Add title and save
     plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=raw.region)
