@@ -309,10 +309,13 @@ def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: n
 
     # Add title and save
     plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=raw.region)
-    plot_file = cfg.accumulation_plot_file_pattern.format(simulation=cfg.simulation, region=raw.region)
-    print('\nsave', plot_file)
     pylab.title(plot_title)
-    pylab.savefig(plot_file, pad_inches=0.2, bbox_inches='tight')
+
+    for ext in ('png', 'svg'):
+        plot_file = cfg.accumulation_plot_file_pattern.format(simulation=cfg.simulation, region=raw.region, ext=ext)
+        print('\nsave', plot_file)
+        pylab.savefig(plot_file, pad_inches=0.2, bbox_inches='tight')
+
     pylab.clf()
     pylab.close()
 

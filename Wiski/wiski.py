@@ -19,7 +19,6 @@ import netCDF4 as nc
 import numpy as np
 from pytz import UTC
 
-# SETUP
 from make_masks import ConfigGetter
 
 np.set_printoptions(precision=3, threshold=10000, linewidth=125)
