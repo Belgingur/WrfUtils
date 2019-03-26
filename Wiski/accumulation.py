@@ -23,7 +23,7 @@ from matplotlib.dates import SEC_PER_HOUR
 from mpl_toolkits.basemap import Basemap
 from pytz import UTC
 
-from make_masks import ConfigGetter
+from make_masks import ConfigGetter, read_domain_shape
 from wiski import read_weights, read_timestamps, RegionAndWeights
 
 np.set_printoptions(precision=3, threshold=10000, linewidth=125)
@@ -55,7 +55,7 @@ def read_config() -> ConfigGetter:
 
     parser.add_argument('-f', '--from_time', type=parse_time,
                         help='Start of accumulation period')
-    parser.add_argument('-t-', '--to_time', type=parse_time,
+    parser.add_argument('-t', '--to_time', type=parse_time,
                         help='End of accumulation period')
     return ConfigGetter(parser)
 
@@ -71,27 +71,13 @@ def pick_period(cfg, region, key: str):
     return dt
 
 
-def read_geo_shape(cfg: ConfigGetter):
-    path = cfg.geo
-    path = os.path.expandvars(path)
-    path = os.path.expanduser(path)
-    print("geo path:", path)
-    with nc.Dataset(path) as ds:
-        lats = ds.variables['XLAT_M'][0]
-        lons = ds.variables['XLONG_M'][0]
-        hgts = ds.variables['HGT_M'][0]
-        print('shape', lats.shape)
-
-        return lats, lons, hgts
-
-
 def read_accumulation_time_to_time(path: str, to_time: datetime, from_time: datetime = None, verbose=False):
     """ Read accumulation between timestamps in the given data file. If to_time is not given, return accumulation from start of simulation. """
     with nc.Dataset(path) as ds:
         times = read_timestamps(ds)
         to_step = times.index(to_time)
         print(f'read step {to_step} ({to_time:%Y-%m-%dT%H:%M}) of {path}')
-        to_accumulation = ds.variables['RAINC'][to_step] + ds.variables['RAINNC'][to_step]
+        to_accumulation = read_accumulation_variable(ds, to_step)
         # print("to_accumulation:", np.round(np.sum(to_accumulation)))  # total mm*cells
 
         if from_time is None:
@@ -99,10 +85,18 @@ def read_accumulation_time_to_time(path: str, to_time: datetime, from_time: date
 
         from_step = times.index(from_time)
         print(f'read step {from_step} ({from_time:%Y-%m-%dT%H:%M}) of {path}')
-        from_accumulation = ds.variables['RAINC'][from_step] + ds.variables['RAINNC'][from_step]
+        from_accumulation = read_accumulation_variable(ds, from_step)
         # print("from_accumulation:", np.round(np.sum(from_accumulation)))  # total mm*cells
         accumulation = to_accumulation - from_accumulation
         return accumulation
+
+
+def read_accumulation_variable(ds: nc.Dataset, step):
+    vars = ds.variables
+    if 'lwe_precipitation_sum' in vars:
+        return vars['lwe_precipitation_sum'][step]
+    else:
+        return vars['RAINC'][step] + vars['RAINNC'][step]
 
 
 def find_nearest(a, v):
@@ -290,7 +284,7 @@ def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: n
     pre_plot(m, lat0, lon0, lat1, lon1, xs, ys, crop_hgts)
 
     m.contourf(xs, ys, padded, cmap=CMAP, levels=100)
-    m.plot(xs, ys, '.', ms=2, color='k')
+    m.plot(xs, ys, '.', ms=1, color='k')
 
     # Add title and save
     plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=raw.region)
@@ -309,7 +303,7 @@ def main():
     print('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     print('SETUP:', cfg.simulation)
     regions_and_weights = read_weights(cfg.weight_file_pattern, cfg.simulation, sub_levels, only_all_heights=True)
-    lats, lons, hgts = read_geo_shape(cfg)
+    resolution, lats, lons, hgts = read_domain_shape(cfg)
     for raw in regions_and_weights:
         # print(weight_grid.shape, np.min(weight_grid), np.average(weight_grid), np.max(weight_grid))
         print('\n────────────────────────────────────────────────────────────────────────────────')

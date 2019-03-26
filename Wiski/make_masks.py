@@ -13,6 +13,7 @@ import os
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
+from glob import glob
 from itertools import cycle, count, repeat
 from math import isnan, sqrt
 from typing import List, Dict, Tuple, Optional, Sequence, Any, Callable
@@ -62,8 +63,8 @@ class ConfigGetter:
 
         if value is None:
             if default is ...:
-                self._parser.error(f'No configuration found for "{key}" in command-line arguments, simulation config or root config')
-            #print(default, '[default]')
+                simulation_label = self._args.simulation or "simulation"
+                self._parser.error(f'No configuration found for "{key}" in command-line arguments, "{simulation_label}" config or root config')
             return default
 
         #print(value, '[root]')
@@ -125,14 +126,14 @@ def linear_interpolate(x0, n, d1, d2):
     return
 
 
-def sub_sample_grid(xlon, xlat, subres):
+def sub_sample_grid(lons, lats, subres):
     """
-    Create an array in the shape of the flattened xlon or xlat, containing at
+    Create an array in the shape of the flattened lons or lats, containing at
     each position an array of subres*subres sub-sampling points for that cell.
     """
     # print('Create %s*%s sub-sampling points in each of %s*%s cells' %
     # (subres, subres, xlon.shape[0], xlon.shape[1]))
-    j_lim, i_lim = xlon.shape
+    j_lim, i_lim = lons.shape
     sub_points = []
     for j in range(0, j_lim):
         for i in range(0, i_lim):
@@ -141,11 +142,11 @@ def sub_sample_grid(xlon, xlat, subres):
             i1, i2 = max(j - 1, 0), min(j + 1, j_lim - 1)  # b is before, a is after
             j1, j2 = max(i - 1, 0), min(i + 1, i_lim - 1)
 
-            lon0, lat0 = xlon[j, i], xlat[j, i]
-            di_lon_1 = (xlon[j, i] - xlon[j, j1]) / subres / (i - j1) if i > j1 else NaN
-            di_lon_2 = (xlon[j, j2] - xlon[j, i]) / subres / (j2 - i) if j2 > i else NaN
-            dj_lat_1 = (xlat[j, i] - xlat[i1, i]) / subres / (j - i1) if j > i1 else NaN
-            dj_lat_2 = (xlat[i2, i] - xlat[j, i]) / subres / (i2 - j) if i2 > j else NaN
+            lon0, lat0 = lons[j, i], lats[j, i]
+            di_lon_1 = (lons[j, i] - lons[j, j1]) / subres / (i - j1) if i > j1 else NaN
+            di_lon_2 = (lons[j, j2] - lons[j, i]) / subres / (j2 - i) if j2 > i else NaN
+            dj_lat_1 = (lats[j, i] - lats[i1, i]) / subres / (j - i1) if j > i1 else NaN
+            dj_lat_2 = (lats[i2, i] - lats[j, i]) / subres / (i2 - j) if i2 > j else NaN
             # print('% 3.0f % 3.0f\t% 2.4f % 2.4f\t% 2.4f % 2.4f\t% 2.4f % 2.4f' %
             # (j, i, lat0, lon0, dj_lat_1, di_lon_1, dj_lat_2, di_lon_2))
 
@@ -547,7 +548,7 @@ def write_weights(simulation: str, collated_weights: Dict[str, List[LabelledWeig
 
 # PLOTTING
 
-def setup_basemap(xlat, xlon, levels_and_weights):
+def setup_basemap(lats, lons, levels_and_weights):
     lat_min = +90
     lat_max = -90
     lon_min = +180
@@ -561,11 +562,11 @@ def setup_basemap(xlat, xlon, levels_and_weights):
         i_mid = (i_min + i_max) // 2
         # print('ranges', i_min, i_max, j_min, j_max)
 
-        lat_min = min(lat_min, xlat[i_min, j_mid])
-        lat_max = max(lat_max, xlat[i_max, j_mid])
+        lat_min = min(lat_min, lats[i_min, j_mid])
+        lat_max = max(lat_max, lats[i_max, j_mid])
 
-        lon_min = min(lon_min, xlon[i_mid, j_min])
-        lon_max = max(lon_max, xlon[i_mid, j_max])
+        lon_min = min(lon_min, lons[i_mid, j_min])
+        lon_max = max(lon_max, lons[i_mid, j_max])
     # print('lat: % 10.2f - % 10.2f' % (lat_min, lat_max))
     # print('lon: % 10.2f - % 10.2f' % (lon_min, lon_max))
 
@@ -578,7 +579,7 @@ def setup_basemap(xlat, xlon, levels_and_weights):
                 llcrnrlon=lon_min, llcrnrlat=lat_min,
                 urcrnrlon=lon_max, urcrnrlat=lat_max,
                 resolution='i')
-    x, y = m(xlon, xlat)
+    x, y = m(lons, lats)
     return m, x, y, shrink
 
 
@@ -609,9 +610,9 @@ def post_plot(plot_file_pattern: str, weight_plot_title_pattern: str, simulation
 def plot_data(
         simulation: str,
         collated_weights: Dict[str, List[LabelledWeights]],
-        xlat: np.ndarray,
-        xlon: np.ndarray,
-        xhgt: np.ndarray,
+        lats: np.ndarray,
+        lons: np.ndarray,
+        heights: np.ndarray,
         height_res: float,
         plot_file_pattern: str,
         weight_plot_title_pattern: str
@@ -624,8 +625,8 @@ def plot_data(
 
     for region, levels_and_weights in collated_weights.items():
         markers = zip(cycle(colors), cycle(symbols))
-        m, x, y, shrink = setup_basemap(xlat, xlon, levels_and_weights)
-        pre_plot(m, x, y, xhgt, height_res)
+        m, x, y, shrink = setup_basemap(lats, lons, levels_and_weights)
+        pre_plot(m, x, y, heights, height_res)
 
         for law, (color, style) in zip(levels_and_weights, markers):
 
@@ -648,6 +649,58 @@ def plot_data(
         post_plot(plot_file_pattern, weight_plot_title_pattern, simulation, law)
 
 
+# READ DOMAIN SHAPE
+
+def read_domain_shape(cfg: ConfigGetter):
+    geo_path = cfg.get('geo', None)
+
+    def read2d(vars: Dict[str, nc.Variable], var_name: str) -> np.ndarray:
+        """ Read a 2D subspace from vars[var_name] by settin as many initial indexes to 0 as needed. """
+        var = vars[var_name]
+        arr: np.ndarray = (
+            var[...] if var.ndim <= 2 else
+            var[0, ...] if var.ndim == 3 else
+            var[0, 0, ...] if var.ndim == 4 else
+            var[0, 0, 0, ...] if var.ndim == 5 else
+            1 / 0
+        )
+        return arr
+
+    if geo_path:
+        # We have a geo file so let's get variables from there
+        geo_path = os.path.expandvars(geo_path)
+        geo_path = os.path.expanduser(geo_path)
+        print('Read domain shape from', geo_path)
+        with nc.Dataset(geo_path) as dataset:
+            vars = dataset.variables
+            lats = read2d(vars, 'XLAT_M')
+            lons = read2d(vars, 'XLONG_M')
+            heights = read2d(vars, 'HGT_M')
+            resolution = (dataset.DX.item(), dataset.DY.item())
+
+    else:
+        # Uhm, let's see what we find in the first wrfout file
+        print("cfg.wrfouts:", cfg.wrfouts)
+        wrfout_path = os.path.expanduser(os.path.expandvars(cfg.wrfouts))
+        print("wrfout_path:", wrfout_path)
+        wrfout_path = glob(wrfout_path, recursive=True)
+        print("wrfout_path:", wrfout_path)
+        wrfout_path = wrfout_path[0]
+        print('Read domain shape from', wrfout_path)
+        with nc.Dataset(wrfout_path) as dataset:
+            vars = dataset.variables
+            lats = read2d(vars, 'XLAT')
+            lons = read2d(vars, 'XLONG')
+            if 'HGT' in vars:
+                heights = read2d(vars, 'HGT')
+            else:
+                print('WARNING: No terrain height information found')
+                heights = np.zeros_like(lats)  # We won't get any height bands
+            resolution = (dataset.DX.item(), dataset.DY.item())
+
+    return resolution, lats, lons, heights
+
+
 # MAIN FUNCTION
 
 def main():
@@ -656,25 +709,15 @@ def main():
     # Define the coordinate transformation needed for shapefiles
     tx = coord_transform(cfg.shape_spatial_reference, cfg.plot_spatial_reference)
 
-    geo_path = cfg.geo
-    geo_path = os.path.expandvars(geo_path)
-    geo_path = os.path.expanduser(geo_path)
-    print('Read', geo_path)
-    with nc.Dataset(geo_path) as dataset:
-        xhgt = dataset.variables['HGT_M'][0]
-        xlon = dataset.variables['XLONG_M'][0]
-        xlat = dataset.variables['XLAT_M'][0]
-        height = dataset.variables['HGT_M']
-        height = height[0]
-        resolution = [dataset.DX.item(), dataset.DY.item()]
-        grid_shape = xlon.shape
+    resolution, lats, lons, heights = read_domain_shape(cfg)
+    grid_shape = heights.shape
 
     height_res = int(cfg.get('height_resolution', 10000))  # Default results in a single band
     sub_res = cfg.sub_sampling
     sub_levels = sub_res ** 2
     sub_cell_area = resolution[0] * resolution[1] / sub_levels / 1000000
-    sub_points = sub_sample_grid(xlon, xlat, sub_res)
-    sub_heights = interpolate_height(height, sub_res)
+    sub_points = sub_sample_grid(lons, lats, sub_res)
+    sub_heights = interpolate_height(heights, sub_res)
     sub_points_by_height = split_points_by_height(sub_points, sub_heights, sub_cell_area, height_res)
 
     labelled_weights = weigh_shapefiles(cfg.shape_files, tx, grid_shape, sub_points_by_height, sub_levels, sub_cell_area, height_res, cfg.verbose)
@@ -688,7 +731,7 @@ def main():
 
     if cfg.weight_plot_file_pattern:
         plot_data(cfg.simulation, collated_weights,
-                  xlat, xlon, xhgt, height_res,
+                  lats, lons, heights, height_res,
                   cfg.weight_plot_file_pattern,
                   cfg.weight_plot_title_pattern)
 

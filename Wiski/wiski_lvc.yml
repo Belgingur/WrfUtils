@@ -61,7 +61,7 @@ simulations:
     wrfouts: '/riv/scrooge/RAV2/2014-15/wrfout_d02_*_reduced.nc'
     wrfout_tpl: '/riv/scrooge/RAV2/2014-15/wrfout_d02_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
 
-  # TODO: WRF classic-WOD operational forecasts at 3km resolution
+  # WRF classic-WOD operational forecasts at 3km resolution
   wrf-gfs-03-fc:
     sub_sampling: 3
     geo: '/riv/sarpur/daegurfluga/island-3/geo_em.d02.nc'
@@ -71,10 +71,11 @@ simulations:
     file_steps: [6, 12]  # Use steps 6..12 from each file.
     step_length: 60  # Length of each step in minutes
 
-  # TODO: Harmonie re-analysis of ECMWF operational analysis
-  # harmonie:
-  #   geo:
-  #   wrfout: '/sleggjan/shared/output/HARMONIE-ReAnalysis/*/*.nc'
+  # Harmonie re-analysis of ECMWF operational analysis
+  harmonie:
+    sub_sampling: 2
+    wrfouts: '/sleggjan/shared/output/HARMONIE-ReAnalysis/harmonie_lvc_*.nc'
+    wrfout_tpl: '/sleggjan/shared/output/HARMONIE-ReAnalysis/harmonie_lvc_{start_time:%Y-%m}.nc'
 
 
 # Split each region into height bands at this interval [m]
