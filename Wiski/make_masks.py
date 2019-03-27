@@ -683,11 +683,8 @@ def read_domain_shape(cfg: ConfigGetter):
 
     else:
         # Uhm, let's see what we find in the first wrfout file
-        print("cfg.wrfouts:", cfg.wrfouts)
         wrfout_path = os.path.expanduser(os.path.expandvars(cfg.wrfouts))
-        print("wrfout_path:", wrfout_path)
         wrfout_path = glob(wrfout_path, recursive=True)
-        print("wrfout_path:", wrfout_path)
         wrfout_path = wrfout_path[0]
         print('Read domain shape from', wrfout_path)
         with nc.Dataset(wrfout_path) as dataset:

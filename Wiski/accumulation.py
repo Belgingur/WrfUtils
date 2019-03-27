@@ -214,12 +214,14 @@ def last_before(error: Callable[[str], None], target: str, files: List[str]) -> 
         sys.exit(1)
 
 
-def setup_basemap(lat00: float, lon00: float, lat11: float, lon11: float):
-    latc = (lat11 + lat00) / 2
-    lonc = (lon11 + lon00) / 2
+def setup_basemap(crop_lats, lons):
+    lat0, lat1 = crop_lats[0, 0], crop_lats[-1, -1]
+    lon0, lon1 = lons[0, 0], lons[-1, -1]
+    latc = (lat1 + lat0) / 2
+    lonc = (lon1 + lon0) / 2
     return Basemap(projection='stere', lat_ts=latc, lat_0=latc, lon_0=lonc,
-                   llcrnrlat=lat00, llcrnrlon=lon00,
-                   urcrnrlat=lat11, urcrnrlon=lon11,
+                   llcrnrlat=lat0, llcrnrlon=lon0,
+                   urcrnrlat=lat1, urcrnrlon=lon1,
                    resolution='i')
 
 
@@ -267,19 +269,6 @@ COLORS_LABELS = [
 ]
 
 
-def pre_plot(m: Basemap, lat00: float, lon00: float, lat11: float, lon11: float, xs: np.ndarray, ys: np.ndarray, hgts: np.ndarray):
-    pylab.figure(figsize=(12, 10), dpi=100, frameon=True)
-    m.drawcoastlines(linewidth=1.5, color='black')
-    m.readshapefile('joklar/joklar', 'joklar', linewidth=1.5, color='black')
-
-    # m.drawparallels(np.arange(floor(lat00), ceil(lat11), 0.1), labels=[1, 0, 0, 0], color=(0, 0, 0, 0.4))
-    # m.drawmeridians(np.arange(floor(lon00), ceil(lon11), 0.2), labels=[0, 0, 0, 1], color=(0, 0, 0, 0.4))
-
-    iso = np.arange(0, 2300, 100)
-    cs = m.contour(xs, ys, hgts, iso, colors='#808080', linewidths=0.5)
-    pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
-
-
 def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: np.ndarray, weighed: np.ndarray):
     # Crop domain shape vars to slightly larger than the weight matrix
     pad = 1
@@ -289,28 +278,36 @@ def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: n
     i1 = i0 + raw.weight_grid.shape[1] + 2 * pad
     crop_lats = lats[j0:j1, i0:i1]
     crop_lons = lons[j0:j1, i0:i1]
-    crop_hgts = hgts[j0:j1, i0:i1]
 
     # Pad weighted data to same size as above
     padded = np.zeros(shape=crop_lats.shape)
     padded[pad:-pad, pad:-pad] = weighed
 
-    lat0, lat1 = crop_lats[0, 0], crop_lats[-1, -1]
-    lon0, lon1 = crop_lons[0, 0], crop_lons[-1, -1]
-    m = setup_basemap(lat0, lon0, lat1, lon1)
+    # Setup basemap
+    m = setup_basemap(crop_lats, crop_lons)
     xs, ys = m(crop_lons, crop_lats)
 
-    pre_plot(m, lat0, lon0, lat1, lon1, xs, ys, crop_hgts)
+    # Create static plot parts
+    pylab.figure(figsize=(12, 10), dpi=100, frameon=True)
+    m.drawcoastlines(linewidth=1.5, color='black')
+    m.readshapefile('joklar/joklar', 'joklar', linewidth=1.5, color='black')
+    plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=raw.region)
 
+    # Plot elevation contours lines
+    iso = np.arange(0, 2300, 100)
+    cs = m.contour(xs, ys, hgts, iso, colors='#808080', linewidths=0.5)
+    pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
+    pylab.title(plot_title)
+
+    # Plot precipitation
     m.contourf(xs, ys, padded, levels=LEVELS, colors=COLORS, extend='neither')
     cs = m.contour(xs, ys, padded, levels=LEVELS, colors=COLORS_CONTOURS)
     pylab.axes().clabel(cs, inline=1, fontsize=10, fmt='%g', colors=COLORS_LABELS)
+
+    # Plot a dot for each simulation cell
     m.plot(xs, ys, '.', ms=0.5, color=(0, 0, 0, 0.5))
 
-    # Add title and save
-    plot_title = cfg.accumulation_plot_title_pattern.format(simulation=cfg.simulation, region=raw.region)
-    pylab.title(plot_title)
-
+    # Write PNG and SVG files.
     for ext in ('png', 'svg'):
         plot_file = cfg.accumulation_plot_file_pattern.format(simulation=cfg.simulation, region=raw.region, ext=ext)
         print('\nsave', plot_file)
