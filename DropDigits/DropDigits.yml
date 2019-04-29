@@ -67,7 +67,7 @@ exclude: []
 
 # Override attributes in copied variables.
 # Putting '@foo' instead of a dict uses the values given for foo
-# The default key decides how we handle variables with no specific overrides
+# Variables which are not listed are copied with the same datatype scale_factor and add_offset (if default_include=True)
 overrides:
 
   # Valid data-type specifiers include:
