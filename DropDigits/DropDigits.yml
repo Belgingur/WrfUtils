@@ -6,7 +6,7 @@ default_include: True
 # - basename The name of the input file without extension or path
 # - ext      The file extension including dot (ex: '.nc4') (ex: '')
 # - path     The path to the input file (ex: '../runtime') (ex: '.')
-output_filename: '{path}/{basename}_reduced.nc4'
+output_filename: '{path}/{basename}_reduced.nc'
 
 # Custom attributes to add to output file
 custom_attributes:
@@ -34,6 +34,7 @@ include:
   - U10
   - V10
   - T2
+  - RAINC
   - RAINNC
   - SWDOWN
   - P
@@ -52,22 +53,21 @@ include:
   - QFX
   - SEAICE
   - SST
-  - T2
+  - T
+  - U
+  - V
   - TKE_PBL
   - TSK
-  - U
   - UST
-  - V
 
 
 # If default_include is True, include all but these variables.
-# The current list was enough to process a single Africa file, but we need more logic here.
 exclude: []
 
 
 # Override attributes in copied variables.
 # Putting '@foo' instead of a dict uses the values given for foo
-# Variables which are not listed are copied with the same datatype scale_factor and add_offset (if default_include=True)
+# Variables with no override are copied with the same datatype, scale_factor and add_offset
 overrides:
 
   # Valid data-type specifiers include:

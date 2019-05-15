@@ -480,6 +480,6 @@ def process_file(
 if __name__ == '__main__':
     try:
         main()
-    except:
+    except Exception:
         LOG.exception('Uncaught exception in main()')
         raise
