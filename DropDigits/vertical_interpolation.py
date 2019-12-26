@@ -60,6 +60,11 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
     :return: 2D arrays for floor and ceiling indexes, 2D scalar fields for floor and ceiling weights
     """
 
+    # the code below expects levels to increase along k axis, but pressure decreases so we invert
+    if z[0,0,0,0] > z[0,1,0,0]:
+        z = -z
+        target = -target
+
     # Expected shape of variables with a flattened k-dimension
     flatshape = z.shape[0:1] + (1,) + z.shape[2:]
     flatsize = z.size / z.shape[1]

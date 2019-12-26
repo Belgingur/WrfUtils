@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from Elevator import DIM_NAMES_GEO
-from calculators import CALCULATORS, ChunkCalculator, derived, wind_dir, wind_dir_10
+from calculators import CALCULATORS, ChunkCalculator, derived, wind_dir, wind_dir_10, HeightType
 from utils import DIM_BOTTOM_TOP
 from utils_testing import mock_dataset_meta, slice_call
 
@@ -51,7 +51,7 @@ def test_init():
 def test_calculator_native_aligned():
     in_ds = mock_africa_ds()
 
-    c = ChunkCalculator(10, 20, [10, 50, 100], True)
+    c = ChunkCalculator(10, 20, [10, 50, 100], HeightType.above_ground)
     c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates T
     c._ipor_alig.dimension = DIM_BOTTOM_TOP
     c._ipor_alig.max_k = 7
@@ -81,7 +81,7 @@ def test_calculator_native_aligned():
 
 def test_calculator_native_staggered():
     in_ds = mock_africa_ds()
-    c = ChunkCalculator(5, 12, [33, 66, 99], True)
+    c = ChunkCalculator(5, 12, [33, 66, 99], HeightType.above_ground)
     c.add_dataset(in_ds)
     c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
     c._ipor_alig.dimension = DIM_BOTTOM_TOP
@@ -117,7 +117,7 @@ def test_calculator_native_staggered():
 
 def test_calculator_derived():
     in_ds = mock_africa_ds()
-    c = ChunkCalculator(32, 64, [50, 150, 300], True)
+    c = ChunkCalculator(32, 64, [50, 150, 300], HeightType.above_ground)
     c.add_dataset(in_ds)
 
     c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
@@ -188,7 +188,7 @@ def test_calculator_height():
         U=MagicMock(),
         V=MagicMock(),
     )
-    c = ChunkCalculator(5, 12, [10, 50, 80, 100, 150], True)
+    c = ChunkCalculator(5, 12, [10, 50, 80, 100, 150], HeightType.above_ground)
     c.add_dataset(in_ds)
     c._ipor_alig = MagicMock(name='ipor_alig')  # Interpolates U
     c._ipor_alig.heights = c.heights
@@ -219,7 +219,7 @@ def test_fallback():
         HGT=HGT,
     )
 
-    c = ChunkCalculator(10, 20, [100, 200, 500], False)
+    c = ChunkCalculator(10, 20, [100, 200, 500], HeightType.above_sea)
     c.add_dataset(in_ds)  # Does not have the geo variables
     c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
     r = c('HGT')
@@ -232,7 +232,7 @@ def test_fallback_geo_z():
     in_ds = mock_dataset_meta(WRFOUT_RÁV)
     geo_ds = mock_dataset_meta(GEO_RÁV)
 
-    c = ChunkCalculator(32, 64, [100, 200, 500], True)
+    c = ChunkCalculator(32, 64, [100, 200, 500], HeightType.above_ground)
     c.add_dataset(in_ds)  # Does not have the geo variables
     c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
     c.z_stag()
@@ -246,7 +246,7 @@ def test_static_cosalpha_sinalpha():
     in_ds = mock_dataset_meta(WRFOUT_RÁV)
     geo_ds = mock_dataset_meta(GEO_RÁV)
 
-    c = ChunkCalculator(32, 64, [100, 200, 500], True)
+    c = ChunkCalculator(32, 64, [100, 200, 500], HeightType.above_ground)
     c.add_dataset(in_ds)  # Does not have the geo variables
     c.add_dataset(geo_ds, 10, DIM_NAMES_GEO)
     c.make_vars_static('COSALPHA', 'SINALPHA')

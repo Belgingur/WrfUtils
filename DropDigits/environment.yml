@@ -20,5 +20,5 @@ dependencies:
   - netcdf4=1.4.*
 
   # Development
-  - pytest=4.2.*
-  - pytest-cov=2.6.*
+  - pytest=5.0.*
+  - pytest-cov=2.7.*

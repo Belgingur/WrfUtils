@@ -1,5 +1,6 @@
 import inspect
 import logging
+from enum import Enum
 from types import FunctionType
 from typing import Dict, Iterable
 from typing import List
@@ -20,6 +21,12 @@ LOG = logging.getLogger('belgingur.calculators')
 CALCULATORS = dict()  # type: Dict[str, FunctionType]
 
 
+class HeightType(Enum):
+    above_ground = 1,
+    above_sea = 2,
+    pressure = 3,
+
+
 class ChunkCalculator(object):
     """
     Instances will return variables from a Dataset in a time-range, destaggerd in the plane and vertically interpolated
@@ -30,7 +37,7 @@ class ChunkCalculator(object):
     or derived.
     """
 
-    def __init__(self, t_start: int, t_end: int, heights: List[int], above_ground: bool):
+    def __init__(self, t_start: int, t_end: int, heights: List[int], height_type: HeightType):
         super().__init__()
         self.datasets = []  # type: List[(Dataset, int, Union[None, Set[str]])]
         self.static_vars = set()  # type: Set[str]
@@ -38,9 +45,14 @@ class ChunkCalculator(object):
         self.t_start = t_start
         self.t_end = t_end
         self.heights = heights
-        self.above_ground = above_ground
+        if height_type is True:
+            self.height_type = HeightType.above_ground
+        elif height_type is False:
+            self.height_type = HeightType.above_sea
+        else:
+            self.height_type = height_type
 
-        # Laxily crated objets
+        # Lazily crated objets
         self._ipor_stag = None
         self._ipor_alig = None
 
@@ -68,19 +80,30 @@ class ChunkCalculator(object):
 
     @memoize
     def z_stag(self):
+        """ Return the heights of the input file's sigma levels as dictated by the height_type """
         LOG.info('        calculate z_stag')
 
-        ph, m, n = self.get_var_native('PH')
-        ph = ph[self.t_start:self.t_end, ..., m:n, m:n]
-        phb, m, n = self.get_var_native('PHB')
-        phb = phb[self.t_start:self.t_end, ..., m:n, m:n]
+        if self.height_type in (HeightType.above_sea, HeightType.above_ground):
 
-        z_stag = (ph + phb) * g_inv  # ph and phb are vertically staggered
-        if self.above_ground:
-            hgt, m, n = self.get_var_native('HGT', 'HGT_M')
-            hgt = hgt[0, m:n, m:n]
-            z_stag -= hgt
-        return z_stag
+            ph, m, n = self.get_var_native('PH')
+            ph = ph[self.t_start:self.t_end, ..., m:n, m:n]
+            phb, m, n = self.get_var_native('PHB')
+            phb = phb[self.t_start:self.t_end, ..., m:n, m:n]
+
+            z_stag = (ph + phb) * g_inv  # ph and phb are vertically staggered
+            if self.height_type == HeightType.above_ground:
+                hgt, m, n = self.get_var_native('HGT', 'HGT_M')
+                hgt = hgt[0, m:n, m:n]
+                z_stag -= hgt
+            return z_stag
+
+        else:
+
+            p, m, n = self.get_var_native('P')
+            p = p[self.t_start:self.t_end, ..., m:n, m:n]
+            pb, m, n = self.get_var_native('PB')
+            pb = pb[self.t_start:self.t_end, ..., m:n, m:n]
+            return (p + pb) / 100
 
     @memoize
     def z_alig(self):
@@ -98,7 +121,7 @@ class ChunkCalculator(object):
         return self._ipor_alig
 
     def __call__(self, var_name: str) -> np.ndarray:
-        # synthetic variable wnated by e.g. `height`
+        # synthetic variable wanted by e.g. `height`
         if var_name == '_chunk_calculator':
             return self
 
@@ -331,12 +354,42 @@ def wind_dir_10(U10_true, V10_true):
 
 
 @derived(
+    units='m2 s-2',
+    datatype=np.int16,
+    scale_factor=4,
+)
+def geopotential(PH, PHB):
+    return PH + PHB
+
+
+@derived(
+    units='m',
+    datatype=np.int16,
+    add_offset=16384,
+    scale_factor=0.5,  # 0..32768
+)
+def geopotential_height(geopotential):
+    return geopotential * g_inv
+
+
+@derived(
+    units='m',
+    datatype=np.int16,
+    add_offset=16384,
+    scale_factor=0.5,  # 0..32768
+)
+def height_(geopotential_height, HGT):  # There is already height without the _ which gives the heights we intend to interpolate to
+    return geopotential_height - HGT
+
+
+@derived(
     units='Pa',
     datatype=np.int16,
-    scale_factor=10,  # ±327680
+    add_offset=655.36,
+    scale_factor=0.02,  # 0..
 )
 def pressure(P, PB):
-    return P + PB
+    return (P + PB) / 100
 
 
 @derived(

@@ -19,7 +19,7 @@ import numpy as np
 import yaml
 from netCDF4 import Dataset, Variable
 
-from calculators import ChunkCalculator, CALCULATORS
+from calculators import ChunkCalculator, CALCULATORS, HeightType
 from utils import out_file_name, setup_logging, read_wrf_dates, CHUNK_SIZE_TIME, pick_chunk_sizes, \
     create_output_dataset, DIM_BOTTOM_TOP, DIM_TIME
 
@@ -41,6 +41,15 @@ VAR_NAMES_STATIC = (
     'MAPFAC', 'MAPFAC_M', 'MF_VX_INV',
     'E', 'F',
 )
+
+
+HEIGHT_TYPE_DESCRIPTION = {
+    HeightType.above_ground: 'above ground',
+    HeightType.above_sea: 'above sea-level',
+    HeightType.pressure: 'pressure levels'
+}
+
+
 def configure() -> (argparse.Namespace, dict):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', default='Elevator.yml',
@@ -105,7 +114,8 @@ def destagger_dim_name(in_dim_name: str):
 def create_output_variables(
         in_ds: Dataset, geo_ds: Union[None, Dataset], calculators:
         Dict[str, Any], out_ds: Dataset, out_var_names: List[str],
-        comp_level: int, chunking: bool, elevation_limit: int
+        comp_level: int, chunking: bool, elevation_limit: int,
+        height_unit: str
 ) -> List[Variable]:
     LOG.info('Create output variables with:')
     out_vars = []
@@ -143,7 +153,10 @@ def create_output_variables(
                 'description', 'least_significant_digit', 'scale_factor', 'add_offset',
                 'FieldType', 'MemoryOrder', 'units', 'coordinates',
         ):
-            value = getattr(source, field, None)
+            if field == 'units' and var_name == 'height':
+                value = height_unit
+            else:
+                value = getattr(source, field, None)
             if value is not None:
                 setattr(out_var, field, value)
         out_vars.append(out_var)
@@ -183,10 +196,14 @@ def main():
     total_start_time = time()
     total_in_size = total_out_size = 0
     heights = config.get('heights')
-    above_ground = bool(config.get('above_ground'))
-    LOG.info('Interpolate variables to %sm above %s',
-             'm, '.join(map(str, heights)),
-             'ground' if above_ground else 'sea-level')
+    height_type = HeightType[config.get('height_type')]
+    height_unit = 'hPa' if height_type == HeightType.pressure else 'm'
+    LOG.info(
+        'Interpolate variables to %s%s %s',
+        (height_unit + ', ').join(map(str, heights)),
+        height_unit,
+        HEIGHT_TYPE_DESCRIPTION[height_type]
+    )
     LOG.info('')
     geo_ds = Dataset(args.geo_fallback) if args.geo_fallback else None
     geo_margin = args.geo_margin
@@ -231,7 +248,8 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
 
     dates = read_wrf_dates(in_ds)
     heights = config.get('heights')  # type: List[int]
-    above_ground = bool(config.get('above_ground'))
+    height_type = HeightType[config.get('height_type')]
+    height_unit = 'hPa' if height_type == HeightType.pressure else 'm'
     custom_attributes = config.get('custom_attributes', dict())
 
     out_ds = create_output_dataset(out_file, in_file, in_ds, custom_attributes)
@@ -239,7 +257,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
 
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
-    create_output_variables(in_ds, geo_ds, CALCULATORS, out_ds, out_var_names, comp_level, chunking, len(heights))
+    create_output_variables(in_ds, geo_ds, CALCULATORS, out_ds, out_var_names, comp_level, chunking, len(heights), height_unit)
 
     chunk_size = CHUNK_SIZE_TIME // 4
     LOG.info('Processing data in chunks of %s time steps', chunk_size)
@@ -247,7 +265,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
         t_end = min(t_start + chunk_size, len(dates))
         LOG.info('Chunk[%s:%s]: %s - %s', t_start, t_end, dates[t_start], dates[t_end - 1])
 
-        cc = ChunkCalculator(t_start, t_end, heights, above_ground)
+        cc = ChunkCalculator(t_start, t_end, heights, height_type)
         cc.add_dataset(in_ds)
         cc.add_dataset(geo_ds, geo_margin, DIM_NAMES_GEO)
         cc.make_vars_static(*VAR_NAMES_STATIC)

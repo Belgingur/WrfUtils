@@ -106,7 +106,7 @@ def test_create_output_variables_native():
     out_var_names = ['U', 'V', 'T', 'TKE_PBL']
     create_output_variables(
         in_ds, None, CALCULATORS,
-        out_ds, out_var_names, 7, True, 5
+        out_ds, out_var_names, 7, True, 5, 'm'
     )
     assert out_ds.createVariable.call_args_list == [
         call('U', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
@@ -128,7 +128,7 @@ def test_create_output_variables_fallback():
     out_var_names = ['T', 'TKE_PBL', 'HGT']
     create_output_variables(
         in_ds, None, CALCULATORS,
-        out_ds, out_var_names, 7, True, 5
+        out_ds, out_var_names, 7, True, 5, 'm'
     )
     assert out_ds.createVariable.call_args_list == [
         call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
@@ -152,7 +152,7 @@ def test_create_output_variables_mixed():
     out_var_names = ['T', 'TKE_PBL', 'wind_speed', 'wind_dir']
     create_output_variables(
         in_ds, None, CALCULATORS,
-        out_ds, out_var_names, 7, True, 5
+        out_ds, out_var_names, 7, True, 5, 'm'
     )
     assert out_ds.createVariable.call_args_list == [
         call('T', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
