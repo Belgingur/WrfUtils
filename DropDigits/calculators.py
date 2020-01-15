@@ -383,7 +383,7 @@ def height_(geopotential_height, HGT):  # There is already height without the _ 
 
 
 @derived(
-    units='Pa',
+    units='hPa',
     datatype=np.int16,
     add_offset=655.36,
     scale_factor=0.02,  # 0..
