@@ -84,7 +84,6 @@ class ChunkCalculator(object):
         LOG.info('        calculate z_stag')
 
         if self.height_type in (HeightType.above_sea, HeightType.above_ground):
-
             ph, m, n = self.get_var_native('PH')
             ph = ph[self.t_start:self.t_end, ..., m:n, m:n]
             phb, m, n = self.get_var_native('PHB')
@@ -98,17 +97,20 @@ class ChunkCalculator(object):
             return z_stag
 
         else:
+            return destagger_array(self.z_alig(), 1)
 
+    @memoize
+    def z_alig(self):
+        LOG.info('        calculate z')
+        if self.height_type in (HeightType.above_sea, HeightType.above_ground):
+            return destagger_array(self.z_stag(), 1)
+
+        else:
             p, m, n = self.get_var_native('P')
             p = p[self.t_start:self.t_end, ..., m:n, m:n]
             pb, m, n = self.get_var_native('PB')
             pb = pb[self.t_start:self.t_end, ..., m:n, m:n]
             return (p + pb) / 100
-
-    @memoize
-    def z_alig(self):
-        LOG.info('        calculate z')
-        return destagger_array(self.z_stag(), 1)
 
     def ipor_stag(self) -> Interpolator:
         if self._ipor_stag is None:
