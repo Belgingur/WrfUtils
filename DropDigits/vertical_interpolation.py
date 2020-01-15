@@ -61,9 +61,12 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
     """
 
     # the code below expects levels to increase along k axis, but pressure decreases so we invert
-    if z[0,0,0,0] > z[0,1,0,0]:
+    if z[0, 0, 0, 0] > z[0, 1, 0, 0]:
+        display_mul = -1  # Multiply target with this for display
         z = -z
         target = -target
+    else:
+        display_mul = -1
 
     # Expected shape of variables with a flattened k-dimension
     flatshape = z.shape[0:1] + (1,) + z.shape[2:]
@@ -109,9 +112,9 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
         mask = mask[:, 0, :, :]
     trues = np.count_nonzero(mask)
     if trues:
-        LOG.warning('            %sm %0.0f%% masked', target, 100 * trues / flatsize)
+        LOG.warning('            %s %.2g%% masked', display_mul * target, 100 * trues / flatsize)
     else:
-        LOG.debug('        %sm', target)
+        LOG.debug('        %s', display_mul * target)
 
     return VIC(t_grid, j_grid, i_grid, k_ce, k_fl, w_ce, w_fl, mask)
 

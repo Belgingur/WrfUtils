@@ -52,7 +52,7 @@ class ChunkCalculator(object):
         else:
             self.height_type = height_type
 
-        # Lazily crated objets
+        # Lazily crated objects
         self._ipor_stag = None
         self._ipor_alig = None
 
