@@ -209,8 +209,11 @@ def create_output_variables(
     return out_vars
 
 
-def create_output_dimensions(in_ds: Dataset, var_names: List[str], out_ds: Dataset,
-                             margin: int, max_t: int, max_k: int = None):
+def create_output_dimensions(
+        in_ds: Dataset, var_names: List[str], out_ds: Dataset,
+        margin: int, max_t: int, max_k: int = None,
+        unlimited_time=False
+):
     LOG.info('Add output dimensions:')
     need_dims = set()
     for var_name in var_names:
@@ -223,7 +226,7 @@ def create_output_dimensions(in_ds: Dataset, var_names: List[str], out_ds: Datas
     for dim_name, in_dim in in_ds.dimensions.items():
         if dim_name in need_dims:
             if dim_name == 'Time':
-                size = max_t
+                size = None if unlimited_time else max_t
             elif in_dim.isunlimited():
                 size = None
             else:
@@ -394,7 +397,8 @@ def process_file(
 
     custom_attributes = config.get('custom_attributes', dict())
     out_ds = create_output_dataset(out_file, nominal_infile, in_ds, custom_attributes)
-    create_output_dimensions(in_ds, var_names, out_ds, margin, max_t, max_k)
+    unlimited_time = config.get('unlimited_time', False)
+    create_output_dimensions(in_ds, var_names, out_ds, margin, max_t, max_k, unlimited_time)
     chunking = config.get('chunking', False)
     comp_level = config.get('complevel', 0)
     high_dimensional_floats: Set[str] = set()
