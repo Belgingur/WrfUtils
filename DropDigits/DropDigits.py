@@ -441,17 +441,24 @@ def process_file(
 
             # Carve out a chunk of input variable that we want to copy
             LOG.debug('in_var.shape: %s', in_var.shape)
+            planar = ('west_east' in in_var.dimensions or 'west_east_stag' in in_var.dimensions)  # We don't expect 1 planar dimension...
             if var_max_k is not None:
-                max_j, max_i = in_var.shape[-2:]
-                LOG.debug('in_slice: %s', slice_str[c_start:c_end, 0:var_max_k, margin:max_j - margin, margin:max_i - margin])
-                in_chunk: np.ndarray = in_var[c_start:c_end, 0:var_max_k, margin:max_j - margin, margin:max_i - margin]
-            elif len(in_var.shape) >= 3:
-                max_j, max_i = in_var.shape[-2:]
-                LOG.debug('in_slice: %s', slice_str[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin])
-                in_chunk = in_var[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin]
+                # We are limiting sigma levels
+                if planar:
+                    max_j, max_i = in_var.shape[-2:]
+                    LOG.debug('in_slice: %s', slice_str[c_start:c_end, 0:var_max_k, ..., margin:max_j - margin, margin:max_i - margin])
+                    in_chunk: np.ndarray = in_var[c_start:c_end, 0:var_max_k, ..., margin:max_j - margin, margin:max_i - margin]
+                else:
+                    LOG.debug('in_slice: %s', slice_str[c_start:c_end, 0:var_max_k, ...])
+                    in_chunk: np.ndarray = in_var[c_start:c_end, 0:var_max_k, ...]
             else:
-                LOG.debug('in_slice: %s', slice_str[c_start:c_end])
-                in_chunk = in_var[c_start:c_end]
+                if planar:
+                    max_j, max_i = in_var.shape[-2:]
+                    LOG.debug('in_slice: %s', slice_str[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin])
+                    in_chunk = in_var[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin]
+                else:
+                    LOG.debug('in_slice: %s', slice_str[c_start:c_end, ...])
+                    in_chunk = in_var[c_start:c_end, ...]
 
             LOG.debug('out_var.shape: %s', out_var.shape)
             LOG.debug('out_slice: %s', slice_str[c_start - spinup:c_end - spinup])

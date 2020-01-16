@@ -107,7 +107,7 @@ class _SLICE_STR(object):
             slices = self.slice_str(slices)
         else:
             slices = map(self.slice_str, slices)
-            slices = ','.join(slices)
+            slices = ', '.join(slices)
         return '[' + slices + ']'
 
 
