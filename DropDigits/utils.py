@@ -87,6 +87,34 @@ UNSUPPORTED_TYPES = {'u1', 'u2', 'u4', 'u8'}
 LARGE_TYPES = POINTLESS_TYPES.union({'f4', 'float32'})
 
 
+class _SLICE_STR(object):
+
+    def slice_str(self, s: slice) -> str:
+        if s is Ellipsis:
+            return '...'
+        parts = [
+            '' if s.start is None else str(s.start),
+            '' if s.stop is None else str(s.stop),
+        ]
+        if s.step is not None:
+            parts.append(str(s.step))
+        return ':'.join(map(str, parts))
+
+    def __getitem__(self, slices: Union[slice, Tuple[slice]]):
+        if isinstance(slices, int):
+            slices = str(slices)
+        elif isinstance(slices, slice):
+            slices = self.slice_str(slices)
+        else:
+            slices = map(self.slice_str, slices)
+            slices = ','.join(slices)
+        return '[' + slices + ']'
+
+
+# Creates a string description of a slice like slice_str[3, ..., 5:4:2] etc
+slice_str = _SLICE_STR()
+
+
 def memoize(f):
     """ Very simple memoization decorator """
     memo = {}

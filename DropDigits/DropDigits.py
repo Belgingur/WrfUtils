@@ -20,7 +20,7 @@ import yaml
 from netCDF4 import Dataset, Variable, MFDataset
 
 from utils import out_file_name, setup_logging, read_wrf_dates, TYPE_RANGE, CHUNK_SIZE_TIME, pick_chunk_sizes, \
-    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES, UNSUPPORTED_TYPES, LARGE_TYPES, SHORT_NAMES
+    value_with_override, override_field, create_output_dataset, POINTLESS_TYPES, UNSUPPORTED_TYPES, LARGE_TYPES, SHORT_NAMES, slice_str
 
 LOG = logging.getLogger('belgingur.drop_digits')
 
@@ -82,6 +82,8 @@ def configure() -> (argparse.Namespace, dict):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-c', '--config', default='DropDigits.yml',
                         help='Configuration to read (def: DropDigits.yml)')
+    parser.add_argument('-v', '--verbose', default=False, action='store_true',
+                        help='Write more progress data')
     parser.add_argument('-f', '--fragments', default=False, action='store_true',
                         help='Process the input files as a single multi-file dataset')
     parser.add_argument('-s', '--sort-files', default=False, action='store_true',
@@ -89,6 +91,10 @@ def configure() -> (argparse.Namespace, dict):
     parser.add_argument('in_files', nargs='+',
                         help='wrf output files to process')
     args = parser.parse_args()
+
+    if args.verbose:
+        LOG.setLevel(logging.DEBUG)
+        LOG.debug('Enabled DEBUG logging')
 
     LOG.info('Load config from %s', args.config)
     with open(args.config) as configFile:
@@ -421,6 +427,7 @@ def process_file(
         # Loop through variables
         for out_var in out_vars:
             var_name = out_var.name
+            LOG.debug('var_name: %s', var_name)
             in_var = in_ds.variables[var_name]
             in_var_0 = in_ds_0.variables[var_name]
 
@@ -430,17 +437,24 @@ def process_file(
                 if 'bottom_top' in in_var.dimensions:
                     var_max_k = max_k
                 elif 'bottom_top_stag' in in_var.dimensions:
-                    var_max_k = (max_k or 0) + 1  # silly syntax to make PyCharm not complain about None
+                    var_max_k = max_k + 1
 
             # Carve out a chunk of input variable that we want to copy
+            LOG.debug('in_var.shape: %s', in_var.shape)
             if var_max_k is not None:
                 max_j, max_i = in_var.shape[-2:]
+                LOG.debug('in_slice: %s', slice_str[c_start:c_end, 0:var_max_k, margin:max_j - margin, margin:max_i - margin])
                 in_chunk: np.ndarray = in_var[c_start:c_end, 0:var_max_k, margin:max_j - margin, margin:max_i - margin]
             elif len(in_var.shape) >= 3:
                 max_j, max_i = in_var.shape[-2:]
+                LOG.debug('in_slice: %s', slice_str[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin])
                 in_chunk = in_var[c_start:c_end, ..., margin:max_j - margin, margin:max_i - margin]
             else:
+                LOG.debug('in_slice: %s', slice_str[c_start:c_end])
                 in_chunk = in_var[c_start:c_end]
+
+            LOG.debug('out_var.shape: %s', out_var.shape)
+            LOG.debug('out_slice: %s', slice_str[c_start - spinup:c_end - spinup])
             out_var[c_start - spinup:c_end - spinup] = in_chunk
             out_ds.sync()
 
