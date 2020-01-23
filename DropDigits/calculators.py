@@ -387,11 +387,11 @@ def height_(geopotential_height, HGT):  # There is already height without the _ 
 @derived(
     units='hPa',
     datatype=np.int16,
-    add_offset=655.36,
-    scale_factor=0.02,  # 0..
+    add_offset=65536,
+    scale_factor=2,  # 0..131064
 )
 def pressure(P, PB):
-    return (P + PB) / 100
+    return P + PB
 
 
 @derived(
