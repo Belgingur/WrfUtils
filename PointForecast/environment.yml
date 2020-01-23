@@ -7,12 +7,12 @@ name: PointForecast
 dependencies:
   # Python Core
   - python=3.6.*
-  - pyyaml=3.*
+  - pyyaml=5.*
 #  - dateutil=2.4.*
 
-  # Testing
-  - pytest=3.2.*
-  - pytest-cov=2.5.*
+  # Development
+  - pytest=5.3.*
+  - pytest-cov=2.8.*
 
   # Science
   - numpy=1.11.*

@@ -11,7 +11,7 @@ dependencies:
   # Basic python
   - python=3.7.*
   - ipython
-  - pyyaml=3.*
+  - pyyaml=5.*
 
   # Scientific
   - numpy=1.16.*

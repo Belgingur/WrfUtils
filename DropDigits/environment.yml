@@ -13,12 +13,12 @@ dependencies:
   # Basic python
   - python=3.7.*
   - ipython
-  - pyyaml=3.*
+  - pyyaml=5.*
 
   # Scientific
   - numpy=1.16.*
   - netcdf4=1.4.*
 
   # Development
-  - pytest=5.0.*
-  - pytest-cov=2.7.*
+  - pytest=5.3.*
+  - pytest-cov=2.8.*
