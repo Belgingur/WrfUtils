@@ -52,8 +52,10 @@ HEIGHT_TYPE_DESCRIPTION = {
 
 def configure() -> (argparse.Namespace, dict):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='Elevator.yml',
+    parser.add_argument('-c', '--config', default='Elevator.yml',
                         help='Configuration to read (def: Elevator.yml)')
+    parser.add_argument('-v', '--verbose', default=False, action='store_true',
+                        help='Write more progress data')
     parser.add_argument('--geo-fallback',
                         help='Read XLAT, XLONG, HGT from this file if missing in an input file')
     parser.add_argument('--geo-margin', default=0, type=int,
@@ -61,6 +63,10 @@ def configure() -> (argparse.Namespace, dict):
     parser.add_argument('in_files', nargs="+",
                         help='wrf output files to process')
     args = parser.parse_args()
+
+    if args.verbose:
+        LOG.setLevel(logging.DEBUG)
+        LOG.debug('Enabled DEBUG logging')
 
     LOG.info('Load config from %s', args.config)
     with open(args.config) as configFile:
