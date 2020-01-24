@@ -237,7 +237,7 @@ def create_output_dataset(out_file: str, in_file: str, in_ds: Dataset,
         setattr(out_ds, attr, v)
         LOG.debug('    %s = %s', attr, v)
     LOG.info('Add attributes:')
-    date_str = datetime.datetime.now().strftime('%Y-%M-%d %H:%m:%S')
+    date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     add_attr(out_ds, 'history', f'Converted with {app_name} at {date_str} by {getuser()} on {gethostname()}')
     add_attr(out_ds, 'source', in_file)
     for name, value in custom_attributes.items():
