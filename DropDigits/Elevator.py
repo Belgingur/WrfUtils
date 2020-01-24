@@ -144,9 +144,9 @@ def create_output_variables(
 
         data_type_name = datatype_name(source.datatype)
         scale_factor = getattr(source, 'scale_factor', 1)
-        offset = getattr(source, 'add_offset', 0)
-        data_type_name, offset, scale_factor = avoid_signed_types(data_type_name, offset, scale_factor)
-        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), data_type_name, scale_factor, offset)
+        add_offset = getattr(source, 'add_offset', 0)
+        data_type_name, add_offset, scale_factor = avoid_signed_types(data_type_name, add_offset, scale_factor)
+        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), data_type_name, scale_factor, add_offset)
 
         chunk_sizes = pick_chunk_sizes(in_ds, dimensions, max_k=elevation_limit) if chunking else None
         out_var = out_ds.createVariable(
@@ -170,8 +170,8 @@ def create_output_variables(
                 setattr(out_var, field, value)
         if scale_factor not in (None, 1):
             out_var.scale_factor = scale_factor
-        if offset not in (None, 0):
-            out_var.offset = float(offset)
+        if add_offset not in (None, 0):
+            out_var.add_offset = add_offset
         out_vars.append(out_var)
 
     LOG.debug('Converted variables: \n%s', '\n'.join(map(str, out_vars)))
@@ -313,7 +313,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
                 if DIM_TIME in out_var.dimensions:
                     out_var[t_start:t_end] = out_chunk
                 if LOG.isEnabledFor(logging.DEBUG):
-                    LOG.info('        range: %g .. %g', np.min(out_chunk), np.max(out_chunk))
+                    LOG.debug('        range: %g .. %g', np.min(out_chunk), np.max(out_chunk))
 
                 # If this is not a time series, copy the data as we do the first chunk.
                 elif t_start == 0:
