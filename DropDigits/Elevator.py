@@ -312,7 +312,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
             try:
                 if DIM_TIME in out_var.dimensions:
                     out_var[t_start:t_end] = out_chunk
-                if LOG.isEnabledFor(logging.DEBUG):
+                if LOG.isEnabledFor(logging.DEBUG) and np.issubdtype(out_chunk.dtype, np.number):
                     LOG.debug('        range: %g .. %g', np.min(out_chunk), np.max(out_chunk))
 
                 # If this is not a time series, copy the data as we do the first chunk.
