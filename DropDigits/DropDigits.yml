@@ -6,7 +6,7 @@ default_include: True
 # - basename The name of the input file without extension or path
 # - ext      The file extension including dot (ex: '.nc4') (ex: '')
 # - path     The path to the input file (ex: '../runtime') (ex: '.')
-output_filename: '{path}/{basename}_reduced.nc'
+output_filename: './{basename}_reduced.nc'
 
 # Custom attributes to add to output file
 custom_attributes:
@@ -20,7 +20,7 @@ margin_cells: 10
 
 # Store this many sigma levels for 3D variables, starting from bottom.
 # Comment out to store all sigma levels
-#sigma_limit: 5
+sigma_limit: 5
 
 # Whether to apply chunking to the variables of the output file.
 chunking: True

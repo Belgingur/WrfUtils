@@ -142,21 +142,22 @@ def create_output_variables(
             dimensions = filter(lambda s: s != DIM_TIME, dimensions)
         dimensions = list(dimensions)
 
-        sf = getattr(source, 'scale_factor', 1)
-        off = getattr(source, 'add_offset', 0)
-        dtn = datatype_name(source.datatype)
-        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), dtn, sf, off)
+        data_type_name = datatype_name(source.datatype)
+        scale_factor = getattr(source, 'scale_factor', 1)
+        offset = getattr(source, 'add_offset', 0)
+        data_type_name, offset, scale_factor = avoid_signed_types(data_type_name, offset, scale_factor)
+        LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), data_type_name, scale_factor, offset)
 
         chunk_sizes = pick_chunk_sizes(in_ds, dimensions, max_k=elevation_limit) if chunking else None
         out_var = out_ds.createVariable(var_name,
-                                        source.datatype,
+                                        data_type_name,
                                         dimensions=dimensions,
                                         zlib=comp_level > 0,
                                         complevel=comp_level,
                                         shuffle=True,
                                         chunksizes=chunk_sizes)
         for field in (
-                'description', 'least_significant_digit', 'scale_factor', 'add_offset',
+                'description', 'least_significant_digit',
                 'FieldType', 'MemoryOrder', 'units', 'coordinates',
         ):
             if field == 'units' and var_name == 'height':
@@ -165,10 +166,32 @@ def create_output_variables(
                 value = getattr(source, field, None)
             if value is not None:
                 setattr(out_var, field, value)
+        if scale_factor not in (None, 1):
+            out_var.scale_factor = scale_factor
+        if offset not in (None, 0):
+            out_var.offset = float(offset)
         out_vars.append(out_var)
 
     LOG.debug('Converted variables: \n%s', '\n'.join(map(str, out_vars)))
     return out_vars
+
+
+def avoid_signed_types(name: str, offset: float, scale_factor: float):
+    if name == 'uint8':
+        bits = 8
+    elif name == 'uint16':
+        bits = 16
+    elif name == 'uint32':
+        bits = 32
+    else:
+        return name, offset, scale_factor
+
+    LOG.info('    Avoid NC4C incompatible type %s * %s + %s', name, scale_factor, offset)
+    if offset is None:
+        offset = 0
+    u_name = f'int{bits}'
+    u_offset = offset + 2 ** (bits - 1) * scale_factor
+    return u_name, u_offset, scale_factor
 
 
 def datatype_name(datatype):
@@ -257,6 +280,7 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
     height_type = HeightType[config.get('height_type')]
     height_unit = 'hPa' if height_type == HeightType.pressure else 'm'
     custom_attributes = config.get('custom_attributes', dict())
+    custom_attributes['interpolation'] = f'Interpolated to {(height_unit + ", ").join(map(str, heights))}{height_unit} {HEIGHT_TYPE_DESCRIPTION[height_type]}'
 
     out_ds = create_output_dataset(out_file, in_file, in_ds, custom_attributes)
     create_output_dimensions(in_ds, out_ds, out_dim_names, len(heights))

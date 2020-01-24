@@ -2,10 +2,10 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock, call
 
-import numpy as np
+import pytest
 
 from Elevator import resolve_input_variables, resolve_input_dimensions, resolve_output_dimensions, \
-    create_output_dimensions, create_output_variables, destagger_dim_name, resolve_dimensions
+    create_output_dimensions, create_output_variables, destagger_dim_name, resolve_dimensions, avoid_signed_types
 from calculators import CALCULATORS
 from utils_testing import mock_dataset_meta
 
@@ -109,13 +109,13 @@ def test_create_output_variables_native():
         out_ds, out_var_names, 7, True, 5, 'm'
     )
     assert out_ds.createVariable.call_args_list == [
-        call('U', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('U', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('V', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('V', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('T', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('TKE_PBL', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
@@ -131,11 +131,11 @@ def test_create_output_variables_fallback():
         out_ds, out_var_names, 7, True, 5, 'm'
     )
     assert out_ds.createVariable.call_args_list == [
-        call('T', np.dtype('float32'), chunksizes=(128, 5, 16, 16), complevel=7,
+        call('T', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('TKE_PBL', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('HGT', np.float32, chunksizes=(128, 19), complevel=7,
+        call('HGT', 'float32', chunksizes=(128, 19), complevel=7,
              dimensions=['south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
@@ -155,13 +155,13 @@ def test_create_output_variables_mixed():
         out_ds, out_var_names, 7, True, 5, 'm'
     )
     assert out_ds.createVariable.call_args_list == [
-        call('T', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('T', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('TKE_PBL', np.float32, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('TKE_PBL', 'float32', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('wind_speed', np.int16, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('wind_speed', 'int16', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
-        call('wind_dir', np.int16, chunksizes=(128, 5, 16, 16), complevel=7,
+        call('wind_dir', 'int16', chunksizes=(128, 5, 16, 16), complevel=7,
              dimensions=['Time', 'bottom_top', 'south_north', 'west_east'], shuffle=True, zlib=True),
     ]
 
@@ -173,3 +173,14 @@ def test_destagger_name():
     assert destagger_dim_name('south_north_stag') == 'south_north'
     assert destagger_dim_name('bottom_top') == 'bottom_top'
     assert destagger_dim_name('bottom_top_stag') == 'bottom_top'
+
+
+@pytest.mark.parametrize('name, offset, scale_factor, ex_u_name, ex_u_offset', [
+    ['int32', 0, 1, 'int32', 0],
+    ['uint32', 0, 1, 'int32', 2 ** 31],
+    ['uint16', 0, 2, 'int16', 65536],
+    ['uint8', 0, 10, 'int8', 1280],
+])
+def test_avoid_signed_types(name, offset, scale_factor, ex_u_name, ex_u_offset):
+    ac_u_name, ac_u_offset, ac_u_scale_factor = avoid_signed_types(name, offset, scale_factor)
+    assert (ac_u_name, ac_u_offset, ac_u_scale_factor) == (ex_u_name, ex_u_offset, scale_factor)
