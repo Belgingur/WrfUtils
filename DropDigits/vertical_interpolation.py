@@ -66,7 +66,7 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
         z = -z
         target = -target
     else:
-        display_mul = -1
+        display_mul = +1
 
     # Expected shape of variables with a flattened k-dimension
     flatshape = z.shape[0:1] + (1,) + z.shape[2:]
@@ -114,7 +114,7 @@ def build_vic(target: float, z: np.ndarray) -> 4 * (np.ndarray,):
     if trues:
         LOG.warning('            %s %.2g%% masked', display_mul * target, 100 * trues / flatsize)
     else:
-        LOG.debug('        %s', display_mul * target)
+        LOG.debug('            %s', display_mul * target)
 
     return VIC(t_grid, j_grid, i_grid, k_ce, k_fl, w_ce, w_fl, mask)
 

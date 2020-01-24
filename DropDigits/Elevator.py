@@ -149,13 +149,15 @@ def create_output_variables(
         LOG.info('    %- 15s(%s): %s * %s + %s', var_name, ','.join(dimensions), data_type_name, scale_factor, offset)
 
         chunk_sizes = pick_chunk_sizes(in_ds, dimensions, max_k=elevation_limit) if chunking else None
-        out_var = out_ds.createVariable(var_name,
-                                        data_type_name,
-                                        dimensions=dimensions,
-                                        zlib=comp_level > 0,
-                                        complevel=comp_level,
-                                        shuffle=True,
-                                        chunksizes=chunk_sizes)
+        out_var = out_ds.createVariable(
+            var_name,
+            data_type_name,
+            dimensions=dimensions,
+            zlib=comp_level > 0,
+            complevel=comp_level,
+            shuffle=True,
+            chunksizes=chunk_sizes
+        )
         for field in (
                 'description', 'least_significant_digit',
                 'FieldType', 'MemoryOrder', 'units', 'coordinates',
@@ -310,6 +312,8 @@ def process_file(geo_ds: Dataset, geo_margin: int, in_file: str, out_file: str, 
             try:
                 if DIM_TIME in out_var.dimensions:
                     out_var[t_start:t_end] = out_chunk
+                if LOG.isEnabledFor(logging.DEBUG):
+                    LOG.info('        range: %g .. %g', np.min(out_chunk), np.max(out_chunk))
 
                 # If this is not a time series, copy the data as we do the first chunk.
                 elif t_start == 0:
