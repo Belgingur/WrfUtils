@@ -300,7 +300,7 @@ def destagger_array_by_dim(a: np.ndarray, dims: List[str], dim: str, *, log_inde
     if dim not in dims:
         return a
 
-    #LOG.info('%sdestagger on: %s', log_indent * ' ', dim)
+    LOG.debug('%sdestagger on: %s', log_indent * ' ', dim)
     axis = dims.index(dim)
     return destagger_array(a, axis)
 

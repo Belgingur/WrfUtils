@@ -183,6 +183,7 @@ class ChunkCalculator(object):
             slices.append(0)
         else:
             slices.append(slice(self.t_start, self.t_end))
+        # LOG.info('            %s[0,0]: %s %g .. %g', var.name, var.shape[2:], np.min(var[:]), np.max(var[:]))
 
         # Vertically interpolated variables only need sigma levels up to the highest used in the interpolation
         if ipor:
@@ -198,8 +199,8 @@ class ChunkCalculator(object):
         in_shape = chunk.shape
 
         # Destagger as needed
-        chunk = destagger_array_by_dim(chunk, dims, DIM_SOUTH_NORTH_STAG, log_indent=8)
-        chunk = destagger_array_by_dim(chunk, dims, DIM_WEST_EAST_STAG, log_indent=8)
+        chunk = destagger_array_by_dim(chunk, dims, DIM_SOUTH_NORTH_STAG, log_indent=12)
+        chunk = destagger_array_by_dim(chunk, dims, DIM_WEST_EAST_STAG, log_indent=12)
 
         # Interpolate as needed
         if ipor:
