@@ -40,6 +40,12 @@ class Override(object):
         self.datatype = SHORT_NAMES.get(self.datatype, self.datatype)
         type_range = TYPE_RANGE.get(self.datatype)
 
+        # Avoid int scale & offset which can cause overflows in netCDF4 library
+        if isinstance(self.scale_factor, int):
+            self.scale_factor = float(self.scale_factor)
+        if isinstance(self.add_offset, int):
+            self.add_offset = float(self.add_offset)
+
         if type_range:
             sf = 1 if self.scale_factor is None else self.scale_factor
             ao = 0 if self.add_offset is None else self.add_offset

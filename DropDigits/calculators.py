@@ -239,6 +239,12 @@ def derived(
     - `dimensions` indicating the dimensions of the result.
     """
 
+    # Avoid int scale & offset which can cause overflows in netCDF4 library
+    if isinstance(scale_factor, int):
+        scale_factor=float(scale_factor)
+    if isinstance(add_offset, int):
+        add_offset=float(add_offset)
+
     def wrapper(f):
 
         sig = inspect.signature(f)
