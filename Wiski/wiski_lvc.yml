@@ -25,6 +25,27 @@ periods:
 
 simulations:
 
+  #  ERA-Interim down scaling using V4.1 of WRF at 2km resolution
+  wrfV4-era-02:
+    sub_sampling: 2
+    geo: '/sleggjan/shared/input/RAV2/GEOfiles/nearest/2012-2016/geo_em.d02_2012-2016_nearest_reduced.nc4'
+    wrfouts: '/riv/scrooge/RAV2/WRF-V4.1-2014-15/wrfout_d02_*_reduced.nc'
+    wrfout_tpl: '/riv/scrooge/RAV2/WRF-V4.1-2014-15/wrfout_d02_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+
+  # IceBox WRF V4.1.2 ERA5 down-scaling at 2km resolution
+  wrfV4-era5-02:
+    sub_sampling: 2
+    geo: '/sleggjan/shared/input/IceBox/GEOfiles/2012-16/geo_em.d02_reduced.nc'
+    wrfouts: '/nfs/vcluster/wrf/icebox/output/belgingur-post/2014-15/wrfout_d02_*_reduced.nc'
+    wrfout_tpl: '/nfs/vcluster/wrf/icebox/output/belgingur-post/2014-15/wrfout_d02_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
+
+  # RÁV 1 Dataset at 3km resolution, using inut data from operation ECMWF
+  wrf-ec-03-rav1:
+    sub_sampling: 3
+    geo: '/sleggjan/shared/wrf/V3.0.1-2eq/run/GEOfiles/geo_em.d02_reduced.nc4'
+    wrfouts: '/sleggjan/shared/wrf/V3.0.1-2eq/run/wrfout_d02_*_reducedZ2D.nc4'
+    wrfout_tpl: '/sleggjan/shared/wrf/V3.0.1-2eq/run/wrfout_d02_{start_time:%Y-%m-%d_%H:%M:%S}_reducedZ2D.nc4'
+
   # RÁV 2 Dataset at 10km and 2km resolution
   wrf-gfs-10:
     sub_sampling: 10
@@ -51,7 +72,7 @@ simulations:
 
   # WRF ERA-Interim down scaling at 10km and 2km resolution
   wrf-era-10:
-    sub_sampling: 5
+    sub_sampling: 10
     geo: '/riv/scrooge/RAV2/2014-15/geo_em.d01.nc'
     wrfouts: '/riv/scrooge/RAV2/2014-15/wrfout_d01_*_reduced.nc'
     wrfout_tpl: '/riv/scrooge/RAV2/2014-15/wrfout_d01_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
