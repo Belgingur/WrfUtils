@@ -278,6 +278,7 @@ def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: n
     i1 = i0 + raw.weight_grid.shape[1] + 2 * pad
     crop_lats = lats[j0:j1, i0:i1]
     crop_lons = lons[j0:j1, i0:i1]
+    crop_hgts = hgts[j0:j1, i0:i1]
 
     # Pad weighted data to same size as above
     padded = np.zeros(shape=crop_lats.shape)
@@ -295,7 +296,7 @@ def plot(cfg, raw: RegionAndWeights, lats: np.ndarray, lons: np.ndarray, hgts: n
 
     # Plot elevation contours lines
     iso = np.arange(0, 2300, 100)
-    cs = m.contour(xs, ys, hgts, iso, colors='#808080', linewidths=0.5)
+    cs = m.contour(xs, ys, crop_hgts, iso, colors='#808080', linewidths=0.5)
     pylab.clabel(cs, fmt='%1.0f', colors='#808080', inline=1, fontsize=10)
     pylab.title(plot_title)
 
