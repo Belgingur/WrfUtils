@@ -39,7 +39,7 @@ simulations:
     wrfouts: '/nfs/vcluster/wrf/icebox/output/belgingur-post/2014-15/wrfout_d02_*_reduced.nc'
     wrfout_tpl: '/nfs/vcluster/wrf/icebox/output/belgingur-post/2014-15/wrfout_d02_{start_time:%Y-%m-%d_%H:%M:%S}_reduced.nc'
 
-  # RÁV 1 Dataset at 3km resolution, using inut data from operation ECMWF
+  # RÁV 1 Dataset at 3km resolution, using input data from operational ECMWF
   wrf-ec-03-rav1:
     sub_sampling: 3
     geo: '/sleggjan/shared/wrf/V3.0.1-2eq/run/GEOfiles/geo_em.d02_reduced.nc4'
@@ -124,7 +124,7 @@ accumulation_plot_file_pattern: 'plots/{region}_{simulation}_accumulation.{ext}'
 accumulation_plot_title_pattern: '{region} [{simulation}] Accumulation'
 
 # How many steps to skip from beginning of wrfout file.
-#spinup_steps: 0
+spinup_steps: 0
 
 # Pattern for output file-names (disabled)
 # output_file_pattern:
