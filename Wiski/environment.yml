@@ -1,7 +1,7 @@
 # Conda environment description:
 # * Install miniconda
-# * Run `conda env create -f environment.yml`
-# * Run `. activate DropDigits`
+# * Run `conda env create`
+# * Run `conda activate Wiski`
 
 # 2016.11.03: Upgrading gdal causes all kinds of dependency problems in conda
 # 2016.11.03: Upgrading shapely makes Polygon not hasheable so code to avoid duplicates needs to be updated
@@ -24,3 +24,6 @@ dependencies:
   - basemap-data-hires=1.2.*
   - shapely=1.6.*
   - gdal=2.3.*
+
+  # Other
+  - pytz  # Always latest version
