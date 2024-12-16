@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from bisect import bisect_left
 from builtins import reversed
 from datetime import datetime, timedelta
 from glob import glob
@@ -22,6 +23,7 @@ from matplotlib.dates import SEC_PER_HOUR
 from mpl_toolkits.basemap import Basemap
 from pytz import UTC
 
+from util import extract_date
 from make_masks import ConfigGetter, read_domain_shape
 from wiski import read_weights, read_timestamps, RegionAndWeights
 
@@ -204,6 +206,63 @@ def read_accumulation(cfg: ConfigGetter, to_time: datetime, from_time: datetime,
         return accumulation
 
 
+def read_from_rate(cfg: ConfigGetter, to_time: datetime, from_time: datetime, verbose: bool):
+    """ Use lwe_precipitation_rate instead of RAINC/RAINNC accumulated data
+    Works when `read_rate` is set up in the config
+    """
+    print('Calculating accumulation from lwe_precipitation_rate')
+    if from_time >= to_time:
+        cfg.error(f'Empty accumulation period {from_time :%Y-%m-%dT%H:%M} … {to_time :%Y-%m-%dT%H:%M}')
+
+    files = set()
+
+    paths = cfg.wrfouts
+    if isinstance(paths, str):
+        paths = [paths]
+
+    for path in paths:
+        path = os.path.expandvars(path)
+        path = os.path.expanduser(path)
+        files_for_path: List[str] = glob(path, recursive=True)
+        files.update(files_for_path)
+    files = sorted(files)
+
+    if len(files) == 0:
+        print('No wrfout files found')
+        sys.exit(1)
+    if verbose:
+        print(f'\nFound {len(files)} wrfout files')
+        print(f'from time: {from_time:%Y-%m-%dT%H:%M}')
+        print(f'  to time: {to_time:%Y-%m-%dT%H:%M}')
+
+    date_pattern = cfg.get('date_pattern', 'wrfout_d02_%Y-%m-%dT%H:%M:%S_reduced.nc')
+    file_dates = [extract_date(file_name, date_pattern) for file_name in files]
+    file_dates = [UTC.localize(d) for d in file_dates]
+    left_bound = bisect_left(file_dates, from_time)
+    right_bound = bisect_left(file_dates, to_time)
+
+    if left_bound:
+        left_bound -= 1
+
+    files_to_take = files[left_bound:right_bound]
+
+    ds = nc.MFDataset(files_to_take)
+
+    times = read_timestamps(ds)
+
+    start_idx = times.index(from_time)
+    end_idx = times.index(to_time)
+
+    prec_rate_cube = ds.variables['lwe_precipitation_rate'][start_idx:end_idx + 1]
+    time_interval = (times[end_idx] - times[start_idx]) / (end_idx - start_idx)
+    time_interval = time_interval.total_seconds() / 3600
+    prec_each_hour = prec_rate_cube * time_interval
+    accumulated = np.sum(prec_each_hour, axis=0)
+
+    ds.close()
+    return accumulated
+
+
 def last_before(error: Callable[[str], None], target: str, files: List[str]) -> Tuple[int, str]:
     try:
         idx, file = next((i, f) for i, f in enumerate(reversed(files)) if f <= target)
@@ -334,7 +393,10 @@ def main():
         to_time = pick_period(cfg, raw.region, 'to_time')
         days = (to_time - from_time).total_seconds() / (60 * 60 * 24)
         print(f'period: {from_time :%Y-%m-%dT%H:%M} … {to_time :%Y-%m-%dT%H:%M} is {days:g} days')
-        accumulation = read_accumulation(cfg, to_time, from_time, cfg.verbose)
+        if cfg.read_rate:
+            accumulation = read_from_rate(cfg, to_time, from_time, cfg.verbose)
+        else:
+            accumulation = read_accumulation(cfg, to_time, from_time, cfg.verbose)
         print(f'\naccumulation on forecast domain: {np.average(accumulation):0.1f} mm')
 
         # For plotting crop accumulation to the size of weight_grid and multiply

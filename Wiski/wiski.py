@@ -165,7 +165,7 @@ def parse_wrf_time_string(s: str) -> datetime:
 
 
 def read_timestamps(wrfout):
-    return [parse_timestamp(t) for t in wrfout.variables['Times']]
+    return [parse_timestamp(t) for t in wrfout.variables['Times'][:]]
 
 
 def read_data_direct(wrfout, var_key):
